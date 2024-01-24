@@ -14,6 +14,6 @@ target_include_directories(Cen
     PRIVATE
     src
 )
-target_link_libraries(Cen Ende Canta)
+target_link_libraries(Cen Ende Canta fastgltf meshoptimizer)
 
 add_subdirectory(examples)
