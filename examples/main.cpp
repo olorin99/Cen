@@ -263,6 +263,32 @@ int main(int argc, char* argv[]) {
         .depthFormat = canta::Format::D32_SFLOAT
     });
 
+    auto outputIndicesShader = engine.pipelineManager().getShader({
+        .path = "shaders/output_indirect.comp",
+        .stage = canta::ShaderStage::COMPUTE
+    });
+    auto outputIndicesPipeline = engine.pipelineManager().getPipeline({
+        .compute = { .module = outputIndicesShader },
+    });
+    auto vertexShader = engine.pipelineManager().getShader({
+        .path = "shaders/default.vert",
+        .stage = canta::ShaderStage::VERTEX
+    });
+    auto vertexPipeline = engine.pipelineManager().getPipeline({
+        .vertex = { .module = vertexShader },
+        .fragment = { .module = fragmentShader },
+        .rasterState = {
+            .cullMode = canta::CullMode::NONE
+        },
+        .depthState = {
+            .test = true,
+            .write = true,
+            .compareOp = canta::CompareOp::LEQUAL
+        },
+        .colourFormats = std::to_array({ swapchain->format() }),
+        .depthFormat = canta::Format::D32_SFLOAT
+    });
+
     f64 dt = 1.f / 60;
     bool running = true;
     SDL_Event event;
@@ -377,39 +403,125 @@ int main(int argc, char* argv[]) {
             .name = "depth_image"
         });
 
-        auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
-        geometryPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addColourWrite(swapchainIndex);
-        geometryPass.addDepthWrite(depthIndex);
-        geometryPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
-            auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
-            auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
-            auto indexBuffer = graph.getBuffer(indexBufferIndex);
-            auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
-            auto cameraBuffer = graph.getBuffer(cameraBufferIndex);
+        if (engine.device()->meshShadersEnabled()) {
+            auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
+            geometryPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::MESH_SHADER);
+            geometryPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::MESH_SHADER);
+            geometryPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::MESH_SHADER);
+            geometryPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::MESH_SHADER);
+            geometryPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::MESH_SHADER);
+            geometryPass.addColourWrite(swapchainIndex);
+            geometryPass.addDepthWrite(depthIndex);
+            geometryPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
+                auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
+                auto indexBuffer = graph.getBuffer(indexBufferIndex);
+                auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
+                auto cameraBuffer = graph.getBuffer(cameraBufferIndex);
 
-            cmd.bindPipeline(meshPipeline);
-            cmd.setViewport({ 1920, 1080 });
-            struct Push {
-                u64 meshletBuffer;
-                u64 vertexBuffer;
-                u64 indexBuffer;
-                u64 primitiveBuffer;
-                u64 cameraBuffer;
-            };
-            cmd.pushConstants(canta::ShaderStage::MESH, Push {
-                .meshletBuffer = meshletBuffer->address(),
-                .vertexBuffer = vertexBuffer->address(),
-                .indexBuffer = indexBuffer->address(),
-                .primitiveBuffer = primitiveBuffer->address(),
-                .cameraBuffer = cameraBuffer->address()
+                cmd.bindPipeline(meshPipeline);
+                cmd.setViewport({ 1920, 1080 });
+                struct Push {
+                    u64 meshletBuffer;
+                    u64 vertexBuffer;
+                    u64 indexBuffer;
+                    u64 primitiveBuffer;
+                    u64 cameraBuffer;
+                };
+                cmd.pushConstants(canta::ShaderStage::MESH, Push {
+                        .meshletBuffer = meshletBuffer->address(),
+                        .vertexBuffer = vertexBuffer->address(),
+                        .indexBuffer = indexBuffer->address(),
+                        .primitiveBuffer = primitiveBuffer->address(),
+                        .cameraBuffer = cameraBuffer->address()
+                });
+                cmd.drawMeshTasksWorkgroups(meshlets.size(), 1, 1);
             });
-            cmd.drawMeshTasksWorkgroups(meshlets.size(), 1, 1);
-        });
+        } else {
+            auto outputIndicesIndex = renderGraph.addBuffer({
+                .size = static_cast<u32>(meshlets.size() * 64 * 3 * sizeof(u32)),
+                .name = "output_indices_buffer"
+            });
+            auto drawCommandsIndex = renderGraph.addBuffer({
+                .size = static_cast<u32>(sizeof(u32) + meshlets.size() * sizeof(VkDrawIndexedIndirectCommand)),
+                .name = "draw_commands_buffer"
+            });
+
+            auto outputIndicesAlias = renderGraph.addAlias(outputIndicesIndex);
+            auto drawCommandsAlias = renderGraph.addAlias(drawCommandsIndex);
+            auto& clearPass = renderGraph.addPass("clear", canta::RenderPass::Type::COMPUTE);
+            clearPass.addTransferWrite(outputIndicesAlias);
+            clearPass.addTransferWrite(drawCommandsAlias);
+            clearPass.setExecuteFunction([=](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                cmd.clearBuffer(graph.getBuffer(outputIndicesAlias));
+                cmd.clearBuffer(graph.getBuffer(drawCommandsAlias));
+            });
+
+            auto& outputIndexBufferPass = renderGraph.addPass("output_index_buffer", canta::RenderPass::Type::COMPUTE);
+            outputIndexBufferPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(outputIndicesAlias, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferWrite(outputIndicesIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(drawCommandsAlias, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferWrite(drawCommandsIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
+                auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
+                auto indexBuffer = graph.getBuffer(indexBufferIndex);
+                auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
+                auto outputIndexBuffer = graph.getBuffer(outputIndicesIndex);
+                auto drawCommandsBuffer = graph.getBuffer(drawCommandsIndex);
+
+                cmd.bindPipeline(outputIndicesPipeline);
+                struct Push {
+                    u64 meshletBuffer;
+                    u64 vertexBuffer;
+                    u64 indexBuffer;
+                    u64 primitiveBuffer;
+                    u64 outputIndexBuffer;
+                    u64 drawCommandsBuffer;
+                };
+                cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                        .meshletBuffer = meshletBuffer->address(),
+                        .vertexBuffer = vertexBuffer->address(),
+                        .indexBuffer = indexBuffer->address(),
+                        .primitiveBuffer = primitiveBuffer->address(),
+                        .outputIndexBuffer = outputIndexBuffer->address(),
+                        .drawCommandsBuffer = drawCommandsBuffer->address()
+                });
+                cmd.dispatchWorkgroups(meshlets.size(), 1, 1);
+            });
+
+            auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
+            geometryPass.addStorageBufferRead(outputIndicesIndex, canta::PipelineStage::VERTEX_SHADER);
+            geometryPass.addIndirectRead(drawCommandsIndex);
+            geometryPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::VERTEX_SHADER);
+            geometryPass.addColourWrite(swapchainIndex);
+            geometryPass.addDepthWrite(depthIndex);
+            geometryPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
+                auto indexBuffer = graph.getBuffer(outputIndicesIndex);
+                auto cameraBuffer = graph.getBuffer(cameraBufferIndex);
+                auto drawCommandsBuffer = graph.getBuffer(drawCommandsIndex);
+
+                cmd.bindPipeline(vertexPipeline);
+                cmd.setViewport({ 1920, 1080 });
+                struct Push {
+                    u64 vertexBuffer;
+                    u64 indexBuffer;
+                    u64 cameraBuffer;
+                };
+                cmd.pushConstants(canta::ShaderStage::VERTEX, Push {
+                        .vertexBuffer = vertexBuffer->address(),
+                        .indexBuffer = indexBuffer->address(),
+                        .cameraBuffer = cameraBuffer->address()
+                });
+                cmd.drawIndirectCount(drawCommandsBuffer, sizeof(u32), drawCommandsBuffer, 0);
+            });
+        }
+
 
         auto uiSwapchainIndex = renderGraph.addAlias(swapchainIndex);
         auto& uiPass = renderGraph.addPass("ui", canta::RenderPass::Type::GRAPHICS);
