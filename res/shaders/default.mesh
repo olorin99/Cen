@@ -1,0 +1,83 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference2 : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
+#extension GL_EXT_mesh_shader : enable
+
+layout (local_size_x = 64) in;
+layout (triangles, max_vertices = 64, max_primitives = 64) out;
+
+layout (location = 0) out VsOut {
+    flat uint drawId;
+    flat uint meshletId;
+} meshOut[];
+
+struct Meshlet {
+    uint vertexOffset;
+    uint indexOffset;
+    uint indexCount;
+    uint primitiveOffset;
+    uint primitiveCount;
+};
+layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer MeshletBuffer {
+    Meshlet meshlets[];
+};
+
+struct Vertex {
+    vec3 position;
+    vec3 normal;
+    vec2 uv;
+};
+layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer VertexBuffer {
+    Vertex vertices[];
+};
+
+layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer IndexBuffer {
+    uint indices[];
+};
+
+layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer PrimitiveBuffer {
+    uint8_t primitives[];
+};
+
+layout (push_constant) uniform Push {
+    MeshletBuffer meshletBuffer;
+    VertexBuffer vertexBuffer;
+    IndexBuffer indexBuffer;
+    PrimitiveBuffer primitiveBuffer;
+};
+
+void main() {
+
+    uint threadIndex = gl_LocalInvocationIndex;
+
+//    GPUCamera camera = globalData.cameraBuffer[globalData.primaryCameraIndex].camera;
+//    mat4 model = globalData.transformsBuffer.transforms[payload.meshIndex];
+
+    Meshlet meshlet = meshletBuffer.meshlets[gl_WorkGroupID.x];
+
+    SetMeshOutputsEXT(meshlet.indexCount, meshlet.primitiveCount);
+
+    if (threadIndex < meshlet.indexCount) {
+        uint index = indexBuffer.indices[meshlet.indexOffset + threadIndex] + meshlet.vertexOffset;
+        Vertex vertex = vertexBuffer.vertices[index];
+        vec4 fragPos = vec4(vertex.position, 1.0);
+
+        meshOut[threadIndex].drawId = 0;
+        meshOut[threadIndex].meshletId = gl_WorkGroupID.x;
+
+        gl_MeshVerticesEXT[threadIndex].gl_Position = fragPos;
+    }
+
+    if (threadIndex < meshlet.primitiveCount) {
+        uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 0];
+        uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 1];
+        uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 2];
+
+        gl_PrimitiveTriangleIndicesEXT[threadIndex] = uvec3(a, b, c);
+        gl_MeshPrimitivesEXT[threadIndex].gl_PrimitiveID = int(threadIndex);
+    }
+}

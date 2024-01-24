@@ -3,6 +3,7 @@
 #include <Canta/RenderGraph.h>
 #include <Canta/ImGuiContext.h>
 #include <Canta/UploadBuffer.h>
+#include <Canta/PipelineManager.h>
 #include <Cen/Engine.h>
 
 #include <fastgltf/parser.hpp>
@@ -47,6 +48,10 @@ int main(int argc, char* argv[]) {
         .device = engine.device(),
         .size = 1 << 16
     });
+    auto pipelineManager = canta::PipelineManager::create({
+        .device = engine.device(),
+        .rootPath = CEN_SRC_DIR
+    });
 
 
     fastgltf::Parser parser;
@@ -63,8 +68,8 @@ int main(int argc, char* argv[]) {
 
     struct Vertex {
         ende::math::Vec3f position = {};
-        ende::math::Vec<2, f32> uvs = {};
         ende::math::Vec3f normal = {};
+        ende::math::Vec<2, f32> uvs = {};
     };
     std::vector<Vertex> vertices = {};
     std::vector<u32> indices = {};
@@ -73,6 +78,7 @@ int main(int argc, char* argv[]) {
         u32 indexOffset = 0;
         u32 indexCount = 0;
         u32 primitiveOffset = 0;
+        u32 primitiveCount = 0;
     };
     std::vector<Meshlet> meshlets = {};
     std::vector<u8> primitives = {};
@@ -171,7 +177,8 @@ int main(int argc, char* argv[]) {
                     .vertexOffset = firstVertex,
                     .indexOffset = meshlet.vertex_offset + firstIndex,
                     .indexCount = meshlet.vertex_count,
-                    .primitiveOffset = meshlet.triangle_offset + firstPrimitive
+                    .primitiveOffset = meshlet.triangle_offset + firstPrimitive,
+                    .primitiveCount = meshlet.triangle_count
                 });
             }
 
@@ -212,7 +219,26 @@ int main(int argc, char* argv[]) {
     uploadBuffer.upload(indexBuffer, indices);
     uploadBuffer.upload(primitiveBuffer, primitives);
     uploadBuffer.upload(meshletBuffer, meshlets);
+    uploadBuffer.flushStagedData();
+    uploadBuffer.wait();
 
+
+    auto meshShader = pipelineManager.getShader({
+        .path = "res/shaders/default.mesh",
+        .stage = canta::ShaderStage::MESH
+    });
+    auto fragmentShader = pipelineManager.getShader({
+        .path = "res/shaders/default.frag",
+        .stage = canta::ShaderStage::FRAGMENT
+    });
+    auto meshPipeline = pipelineManager.getPipeline({
+        .fragment = { .module = fragmentShader },
+        .mesh = { .module = meshShader },
+        .rasterState = {
+            .cullMode = canta::CullMode::NONE
+        },
+        .colourFormats = std::to_array({ swapchain->format() })
+    });
 
     bool running = true;
     SDL_Event event;
@@ -257,21 +283,71 @@ int main(int argc, char* argv[]) {
         auto swapchainImage = swapchain->acquire();
 
         auto swapchainIndex = renderGraph.addImage({
-            .handle = swapchainImage.value()
+            .handle = swapchainImage.value(),
+            .name = "swapchain_image"
         });
 
+        auto vertexBufferIndex = renderGraph.addBuffer({
+            .handle = vertexBuffer,
+            .name = "vertex_buffer"
+        });
+        auto indexBufferIndex = renderGraph.addBuffer({
+            .handle = indexBuffer,
+            .name = "index_buffer"
+        });
+        auto primitiveBufferIndex = renderGraph.addBuffer({
+            .handle = primitiveBuffer,
+            .name = "primitive_buffer"
+        });
+        auto meshletBufferIndex = renderGraph.addBuffer({
+            .handle = meshletBuffer,
+            .name = "meshlet_buffer"
+        });
+
+        auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
+        geometryPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::MESH_SHADER);
+        geometryPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::MESH_SHADER);
+        geometryPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::MESH_SHADER);
+        geometryPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::MESH_SHADER);
+        geometryPass.addColourWrite(swapchainIndex);
+        geometryPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
+            auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
+            auto indexBuffer = graph.getBuffer(indexBufferIndex);
+            auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
+
+            cmd.bindPipeline(meshPipeline);
+            cmd.setViewport({ 1920, 1080 });
+            struct Push {
+                u64 meshletBuffer;
+                u64 vertexBuffer;
+                u64 indexBuffer;
+                u64 primitiveBuffer;
+            };
+            cmd.pushConstants(canta::ShaderStage::MESH, Push {
+                .meshletBuffer = meshletBuffer->address(),
+                .vertexBuffer = vertexBuffer->address(),
+                .indexBuffer = indexBuffer->address(),
+                .primitiveBuffer = primitiveBuffer->address()
+            });
+            cmd.drawMeshTasksWorkgroups(meshlets.size(), 1, 1);
+        });
+
+        auto uiSwapchainIndex = renderGraph.addAlias(swapchainIndex);
         auto& uiPass = renderGraph.addPass("ui", canta::RenderPass::Type::GRAPHICS);
-        uiPass.addColourWrite(swapchainIndex);
+        uiPass.addColourRead(swapchainIndex);
+        uiPass.addColourWrite(uiSwapchainIndex);
         uiPass.setExecuteFunction([&imguiContext, &swapchain](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             imguiContext.render(ImGui::GetDrawData(), cmd, swapchain->format());
         });
 
-        renderGraph.setBackbuffer(swapchainIndex);
+        renderGraph.setBackbuffer(uiSwapchainIndex);
         renderGraph.compile();
 
         auto waits = std::to_array({
             { engine.device()->frameSemaphore(), engine.device()->framePrevValue() },
-            swapchain->acquireSemaphore()->getPair()
+            swapchain->acquireSemaphore()->getPair(),
+            uploadBuffer.timeline().getPair()
         });
         auto signals = std::to_array({
             engine.device()->frameSemaphore()->getPair(),
