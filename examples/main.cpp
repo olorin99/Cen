@@ -213,6 +213,7 @@ int main(int argc, char* argv[]) {
     });
     auto camera = cen::Camera::create({
         .position = { 0, 0, 2 },
+        .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180)),
         .width = 1920,
         .height = 1080
     });
@@ -262,6 +263,7 @@ int main(int argc, char* argv[]) {
         .depthFormat = canta::Format::D32_SFLOAT
     });
 
+    f64 dt = 1.f / 60;
     bool running = true;
     SDL_Event event;
     while (running) {
@@ -275,7 +277,6 @@ int main(int argc, char* argv[]) {
         }
 
         {
-            f32 dt = 1.f / 170;
             auto cameraPosition = camera.position();
             auto cameraRotation = camera.rotation();
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_W])
@@ -322,6 +323,7 @@ int main(int argc, char* argv[]) {
             ImGui::ShowDemoWindow();
 
             if (ImGui::Begin("Stats")) {
+                ImGui::Text("Delta Time: %f", dt);
 
                 auto resourceStats = engine.device()->resourceStats();
                 ImGui::Text("Shader Count %d", resourceStats.shaderCount);
@@ -433,7 +435,7 @@ int main(int argc, char* argv[]) {
 
         swapchain->present();
 
-        engine.device()->endFrame();
+        dt = engine.device()->endFrame() / 1000;
 
 
     }
