@@ -7,6 +7,10 @@ auto cen::Engine::create(CreateInfo info) -> Engine {
         .applicationName = "Cen",
         .instanceExtensions = info.window->requiredExtensions()
     }).value();
+    engine._pipelineManager = canta::PipelineManager::create({
+        .device = engine.device(),
+        .rootPath = info.assetPath
+    });
 
     return engine;
 }

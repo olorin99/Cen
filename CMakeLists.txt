@@ -7,7 +7,9 @@ add_compile_definitions(CEN_SRC_DIR="${CMAKE_SOURCE_DIR}")
 
 add_library(Cen
         src/Engine.cpp
-        include/Cen/Engine.h)
+        include/Cen/Engine.h
+        src/Camera.cpp
+        include/Cen/Camera.h)
 
 add_subdirectory(third_party)
 target_include_directories(Cen

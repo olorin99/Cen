@@ -43,18 +43,35 @@ layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer Pr
     uint8_t primitives[];
 };
 
+struct Frustum {
+    vec4 planes[6];
+    vec4 corners[8];
+};
+struct GPUCamera {
+    mat4 projection;
+    mat4 view;
+    vec3 position;
+    float near;
+    float far;
+    Frustum frustum;
+};
+layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer CameraBuffer {
+    GPUCamera camera;
+};
+
 layout (push_constant) uniform Push {
     MeshletBuffer meshletBuffer;
     VertexBuffer vertexBuffer;
     IndexBuffer indexBuffer;
     PrimitiveBuffer primitiveBuffer;
+    CameraBuffer cameraBuffer;
 };
 
 void main() {
 
     uint threadIndex = gl_LocalInvocationIndex;
 
-//    GPUCamera camera = globalData.cameraBuffer[globalData.primaryCameraIndex].camera;
+    GPUCamera camera = cameraBuffer.camera;
 //    mat4 model = globalData.transformsBuffer.transforms[payload.meshIndex];
 
     Meshlet meshlet = meshletBuffer.meshlets[gl_WorkGroupID.x];
@@ -69,7 +86,7 @@ void main() {
         meshOut[threadIndex].drawId = 0;
         meshOut[threadIndex].meshletId = gl_WorkGroupID.x;
 
-        gl_MeshVerticesEXT[threadIndex].gl_Position = fragPos;
+        gl_MeshVerticesEXT[threadIndex].gl_Position = camera.projection * camera.view * fragPos;
     }
 
     if (threadIndex < meshlet.primitiveCount) {

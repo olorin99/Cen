@@ -3,8 +3,8 @@
 #include <Canta/RenderGraph.h>
 #include <Canta/ImGuiContext.h>
 #include <Canta/UploadBuffer.h>
-#include <Canta/PipelineManager.h>
 #include <Cen/Engine.h>
+#include <Cen/Camera.h>
 
 #include <fastgltf/parser.hpp>
 #include <fastgltf/types.hpp>
@@ -31,7 +31,8 @@ int main(int argc, char* argv[]) {
 
     auto engine = cen::Engine::create({
         .applicationName = "CenMain",
-        .window = &window
+        .window = &window,
+        .assetPath = std::filesystem::path(CEN_SRC_DIR) / "res"
     });
     auto swapchain = engine.device()->createSwapchain({
         .window = &window
@@ -47,10 +48,6 @@ int main(int argc, char* argv[]) {
     auto uploadBuffer = canta::UploadBuffer::create({
         .device = engine.device(),
         .size = 1 << 16
-    });
-    auto pipelineManager = canta::PipelineManager::create({
-        .device = engine.device(),
-        .rootPath = CEN_SRC_DIR
     });
 
 
@@ -214,6 +211,25 @@ int main(int argc, char* argv[]) {
         .usage = canta::BufferUsage::STORAGE,
         .name = "meshlet_buffer"
     });
+    auto camera = cen::Camera::create({
+        .position = { 0, 0, 2 },
+        .width = 1920,
+        .height = 1080
+    });
+
+    camera.updateFrustum();
+    auto corners = camera.frustumCorners();
+
+    std::array<canta::BufferHandle, canta::FRAMES_IN_FLIGHT> cameraBuffers = {};
+    for (auto& buffer : cameraBuffers) {
+        buffer = engine.device()->createBuffer({
+            .size = sizeof(cen::GPUCamera),
+            .usage = canta::BufferUsage::STORAGE,
+            .type = canta::MemoryType::STAGING,
+            .persistentlyMapped = true,
+            .name = "camera_buffer"
+        });
+    }
 
     uploadBuffer.upload(vertexBuffer, vertices);
     uploadBuffer.upload(indexBuffer, indices);
@@ -223,21 +239,27 @@ int main(int argc, char* argv[]) {
     uploadBuffer.wait();
 
 
-    auto meshShader = pipelineManager.getShader({
-        .path = "res/shaders/default.mesh",
+    auto meshShader = engine.pipelineManager().getShader({
+        .path = "shaders/default.mesh",
         .stage = canta::ShaderStage::MESH
     });
-    auto fragmentShader = pipelineManager.getShader({
-        .path = "res/shaders/default.frag",
+    auto fragmentShader = engine.pipelineManager().getShader({
+        .path = "shaders/default.frag",
         .stage = canta::ShaderStage::FRAGMENT
     });
-    auto meshPipeline = pipelineManager.getPipeline({
+    auto meshPipeline = engine.pipelineManager().getPipeline({
         .fragment = { .module = fragmentShader },
         .mesh = { .module = meshShader },
         .rasterState = {
             .cullMode = canta::CullMode::NONE
         },
-        .colourFormats = std::to_array({ swapchain->format() })
+        .depthState = {
+            .test = true,
+            .write = true,
+            .compareOp = canta::CompareOp::LEQUAL
+        },
+        .colourFormats = std::to_array({ swapchain->format() }),
+        .depthFormat = canta::Format::D32_SFLOAT
     });
 
     bool running = true;
@@ -252,9 +274,48 @@ int main(int argc, char* argv[]) {
             imguiContext.processEvent(&event);
         }
 
+        {
+            f32 dt = 1.f / 170;
+            auto cameraPosition = camera.position();
+            auto cameraRotation = camera.rotation();
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_W])
+                camera.setPosition(cameraPosition + camera.rotation().front() * dt * 10);
+//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().front() * dt * 10);
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_S])
+                camera.setPosition(cameraPosition + camera.rotation().back() * dt * 10);
+//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().back() * dt * 10);
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_A])
+                camera.setPosition(cameraPosition + camera.rotation().left() * dt * 10);
+//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().left() * dt * 10);
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_D])
+                camera.setPosition(cameraPosition + camera.rotation().right() * dt * 10);
+//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().right() * dt * 10);
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_LSHIFT])
+                camera.setPosition(cameraPosition + camera.rotation().down() * dt * 10);
+//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().down() * dt * 10);
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_SPACE])
+                camera.setPosition(cameraPosition + camera.rotation().up() * dt * 10);
+//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().up() * dt * 10);
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_LEFT])
+                camera.setRotation(cameraRotation * ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(-90) * dt * 10));
+//                scene.getMainCamera()->transform().rotate({0, 1, 0}, ende::math::rad(-90) * dt);
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_RIGHT])
+                camera.setRotation(cameraRotation * ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(90) * dt * 10));
+//                scene.getMainCamera()->transform().rotate({0, 1, 0}, ende::math::rad(90) * dt);
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_UP])
+                camera.setRotation(cameraRotation * ende::math::Quaternion(cameraRotation.right(), ende::math::rad(45) * dt * 10));
+//                scene.getMainCamera()->transform().rotate(scene.getMainCamera()->transform().rot().right(), ende::math::rad(45) * dt);
+            if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_DOWN])
+                camera.setRotation(cameraRotation * ende::math::Quaternion(cameraRotation.right(), ende::math::rad(-45) * dt * 10));
+//                scene.getMainCamera()->transform().rotate(scene.getMainCamera()->transform().rot().right(), ende::math::rad(-45) * dt);
+        }
+
+
         engine.device()->beginFrame();
         engine.device()->gc();
 
+        auto gpuCamera = camera.gpuCamera();
+        cameraBuffers[engine.device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)));
 
         {
             imguiContext.beginFrame();
@@ -303,18 +364,31 @@ int main(int argc, char* argv[]) {
             .handle = meshletBuffer,
             .name = "meshlet_buffer"
         });
+        auto cameraBufferIndex = renderGraph.addBuffer({
+            .handle = cameraBuffers[engine.device()->flyingIndex()],
+            .name = "camera_buffer"
+        });
+
+        auto depthIndex = renderGraph.addImage({
+            .matchesBackbuffer = true,
+            .format = canta::Format::D32_SFLOAT,
+            .name = "depth_image"
+        });
 
         auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
         geometryPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::MESH_SHADER);
         geometryPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::MESH_SHADER);
         geometryPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::MESH_SHADER);
         geometryPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::MESH_SHADER);
+        geometryPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::MESH_SHADER);
         geometryPass.addColourWrite(swapchainIndex);
+        geometryPass.addDepthWrite(depthIndex);
         geometryPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
             auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
             auto indexBuffer = graph.getBuffer(indexBufferIndex);
             auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
+            auto cameraBuffer = graph.getBuffer(cameraBufferIndex);
 
             cmd.bindPipeline(meshPipeline);
             cmd.setViewport({ 1920, 1080 });
@@ -323,12 +397,14 @@ int main(int argc, char* argv[]) {
                 u64 vertexBuffer;
                 u64 indexBuffer;
                 u64 primitiveBuffer;
+                u64 cameraBuffer;
             };
             cmd.pushConstants(canta::ShaderStage::MESH, Push {
                 .meshletBuffer = meshletBuffer->address(),
                 .vertexBuffer = vertexBuffer->address(),
                 .indexBuffer = indexBuffer->address(),
-                .primitiveBuffer = primitiveBuffer->address()
+                .primitiveBuffer = primitiveBuffer->address(),
+                .cameraBuffer = cameraBuffer->address()
             });
             cmd.drawMeshTasksWorkgroups(meshlets.size(), 1, 1);
         });
