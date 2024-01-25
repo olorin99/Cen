@@ -30,8 +30,20 @@ struct DispatchIndirectCommand {
     uint z;
 };
 #ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer DispatchIndirectCommandBuffer {
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer DispatchIndirectCommandBuffer {
     DispatchIndirectCommand command;
+};
+#endif
+
+struct GPUMesh {
+    uint meshletOffset;
+    uint meshletCount;
+    vec4 min;
+    vec4 max;
+};
+#ifndef __cplusplus
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer MeshBuffer {
+    GPUMesh meshes[];
 };
 #endif
 
@@ -45,7 +57,7 @@ struct Meshlet {
     float radius;
 };
 #ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer MeshletBuffer {
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer MeshletBuffer {
     Meshlet meshlets[];
 };
 #endif
@@ -55,7 +67,7 @@ struct MeshletInstance {
     uint meshId;
 };
 #ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 8) buffer MeshletInstanceBuffer {
+layout (scalar, buffer_reference, buffer_reference_align = 4) buffer MeshletInstanceBuffer {
     uint count;
     MeshletInstance instances[];
 };
@@ -68,8 +80,14 @@ struct Vertex {
 };
 
 #ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer VertexBuffer {
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer VertexBuffer {
     Vertex vertices[];
+};
+#endif
+
+#ifndef __cplusplus
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer TransformsBuffer {
+    mat4 transforms[];
 };
 #endif
 

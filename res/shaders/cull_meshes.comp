@@ -9,12 +9,11 @@
 #include "shaders/cen.glsl"
 
 layout (push_constant) uniform Push {
-    MeshletBuffer meshletBuffer;
-    MeshletInstanceBuffer meshletInstanceInputBuffer;
-    MeshletInstanceBuffer meshletInstanceOutputBuffer;
+    MeshBuffer meshBuffer;
+    MeshletInstanceBuffer meshletInstanceBuffer;
     TransformsBuffer transformsBuffer;
     CameraBuffer cameraBuffer;
-    uint meshletCount;
+    uint meshCount;
     uint padding;
 };
 
@@ -34,20 +33,26 @@ void main() {
 
     uint threadIndex = gl_GlobalInvocationID.x;
     if (threadIndex == 0) {
-        meshletInstanceOutputBuffer.count = 0;
+        meshletInstanceBuffer.count = 0;
     }
     barrier();
 
     bool visible = false;
-    if (threadIndex < meshletInstanceInputBuffer.count) {
-        MeshletInstance instance = meshletInstanceInputBuffer.instances[threadIndex];
-        Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
-//        Meshlet meshlet = meshletBuffer.meshlets[threadIndex];
-        vec3 center = (transformsBuffer.transforms[instance.meshId] * vec4(meshlet.center, 1.0)).xyz;
-        visible = frustumCheck(center, meshlet.radius);
+    if (threadIndex < meshCount) {
+        GPUMesh mesh = meshBuffer.meshes[threadIndex];
+        vec3 center = (mesh.max.xyz + mesh.min.xyz) * 0.5;
+        center = (transformsBuffer.transforms[threadIndex] * vec4(center, 1.0)).xyz;
+        vec3 halfExtent = (mesh.max.xyz - mesh.min.xyz) * 0.5;
+        float radius = length(halfExtent);
+        visible = frustumCheck(center, radius);
         if (visible) {
-            uint index = atomicAdd(meshletInstanceOutputBuffer.count, 1);
-            meshletInstanceOutputBuffer.instances[index] = instance;
+            uint index = atomicAdd(meshletInstanceBuffer.count, mesh.meshletCount);
+            for (uint i = 0; i < mesh.meshletCount; i++) {
+                MeshletInstance instance;
+                instance.meshId = threadIndex;
+                instance.meshletId = mesh.meshletOffset + i;
+                meshletInstanceBuffer.instances[index + i] = instance;
+            }
         }
     }
 }

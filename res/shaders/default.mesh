@@ -28,6 +28,7 @@ layout (push_constant) uniform Push {
     VertexBuffer vertexBuffer;
     IndexBuffer indexBuffer;
     PrimitiveBuffer primitiveBuffer;
+    TransformsBuffer transformsBuffer;
     CameraBuffer cameraBuffer;
 };
 
@@ -48,10 +49,10 @@ void main() {
     if (threadIndex < meshlet.indexCount) {
         uint index = indexBuffer.indices[meshlet.indexOffset + threadIndex] + meshlet.vertexOffset;
         Vertex vertex = vertexBuffer.vertices[index];
-        vec4 fragPos = vec4(vertex.position, 1.0);
+        vec4 fragPos = transformsBuffer.transforms[instance.meshId] * vec4(vertex.position, 1.0);
 
         meshOut[threadIndex].drawId = 0;
-        meshOut[threadIndex].meshletId = gl_WorkGroupID.x;
+        meshOut[threadIndex].meshletId = instance.meshletId;
 
         gl_MeshVerticesEXT[threadIndex].gl_Position = camera.projection * camera.view * fragPos;
     }

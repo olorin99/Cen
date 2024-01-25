@@ -5,7 +5,7 @@ auto cen::Engine::create(CreateInfo info) -> Engine {
 
     engine._device = canta::Device::create({
         .applicationName = "Cen",
-        .enableMeshShading = false,
+        .enableMeshShading = true,
         .instanceExtensions = info.window->requiredExtensions(),
     }).value();
     engine._pipelineManager = canta::PipelineManager::create({
