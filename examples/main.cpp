@@ -256,20 +256,20 @@ int main(int argc, char* argv[]) {
         .path = "shaders/default.frag",
         .stage = canta::ShaderStage::FRAGMENT
     });
-    auto meshPipeline = engine.pipelineManager().getPipeline({
-        .fragment = { .module = fragmentShader },
-        .mesh = { .module = meshShader },
-        .rasterState = {
-            .cullMode = canta::CullMode::NONE
-        },
-        .depthState = {
-            .test = true,
-            .write = true,
-            .compareOp = canta::CompareOp::LEQUAL
-        },
-        .colourFormats = std::to_array({ swapchain->format() }),
-        .depthFormat = canta::Format::D32_SFLOAT
-    });
+//    auto meshPipeline = engine.pipelineManager().getPipeline({
+//        .fragment = { .module = fragmentShader },
+//        .mesh = { .module = meshShader },
+//        .rasterState = {
+//            .cullMode = canta::CullMode::NONE
+//        },
+//        .depthState = {
+//            .test = true,
+//            .write = true,
+//            .compareOp = canta::CompareOp::LEQUAL
+//        },
+//        .colourFormats = std::to_array({ swapchain->format() }),
+//        .depthFormat = canta::Format::D32_SFLOAT
+//    });
 
     auto outputIndicesShader = engine.pipelineManager().getShader({
         .path = "shaders/output_indirect.comp",
@@ -485,7 +485,20 @@ int main(int argc, char* argv[]) {
                 auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
                 auto cameraBuffer = graph.getBuffer(cameraBufferIndex);
 
-                cmd.bindPipeline(meshPipeline);
+                cmd.bindPipeline(engine.pipelineManager().getPipeline({
+                    .fragment = { .module = fragmentShader },
+                    .mesh = { .module = meshShader },
+                    .rasterState = {
+                        .cullMode = canta::CullMode::NONE
+                    },
+                    .depthState = {
+                        .test = true,
+                        .write = true,
+                        .compareOp = canta::CompareOp::LEQUAL
+                    },
+                    .colourFormats = std::to_array({ swapchain->format() }),
+                    .depthFormat = canta::Format::D32_SFLOAT
+                }));
                 cmd.setViewport({ 1920, 1080 });
                 struct Push {
                     u64 meshletBuffer;
