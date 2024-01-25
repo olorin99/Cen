@@ -6,25 +6,7 @@
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_EXT_shader_explicit_arithmetic_types : enable
 
-struct Meshlet {
-    uint vertexOffset;
-    uint indexOffset;
-    uint indexCount;
-    uint primitiveOffset;
-    uint primitiveCount;
-};
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer MeshletBuffer {
-    Meshlet meshlets[];
-};
-
-struct Vertex {
-    vec3 position;
-    vec3 normal;
-    vec2 uv;
-};
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer VertexBuffer {
-    Vertex vertices[];
-};
+#include "shaders/cen.glsl"
 
 layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer IndexBuffer {
     uint indices[];
@@ -53,6 +35,7 @@ layout (scalar, buffer_reference, buffer_reference_align = 8) writeonly buffer D
 
 layout (push_constant) uniform Push {
     MeshletBuffer meshletBuffer;
+    MeshletInstanceBuffer meshletInstanceBuffer;
     VertexBuffer vertexBuffer;
     IndexBuffer indexBuffer;
     PrimitiveBuffer primitiveBuffer;
@@ -72,7 +55,8 @@ void main() {
     barrier();
 
     uint threadIndex = gl_LocalInvocationIndex;
-    Meshlet meshlet = meshletBuffer.meshlets[gl_WorkGroupID.x];
+    MeshletInstance instance = meshletInstanceBuffer.instances[gl_WorkGroupID.x];
+    Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
 
     barrier();
     if (threadIndex == 0) {

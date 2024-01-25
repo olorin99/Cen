@@ -12,6 +12,8 @@
 #include <meshoptimizer.h>
 #include <stack>
 
+#include <cen.glsl>
+
 template <>
 struct fastgltf::ElementTraits<ende::math::Vec3f> : fastgltf::ElementTraitsBase<ende::math::Vec3f, AccessorType::Vec3, float> {};
 template <>
@@ -63,20 +65,8 @@ int main(int argc, char* argv[]) {
         return -2;
     }
 
-    struct Vertex {
-        ende::math::Vec3f position = {};
-        ende::math::Vec3f normal = {};
-        ende::math::Vec<2, f32> uvs = {};
-    };
     std::vector<Vertex> vertices = {};
     std::vector<u32> indices = {};
-    struct Meshlet {
-        u32 vertexOffset = 0;
-        u32 indexOffset = 0;
-        u32 indexCount = 0;
-        u32 primitiveOffset = 0;
-        u32 primitiveCount = 0;
-    };
     std::vector<Meshlet> meshlets = {};
     std::vector<u8> primitives = {};
 
@@ -139,7 +129,7 @@ int main(int argc, char* argv[]) {
                 auto& uvsAccessor = asset->accessors[uvsIt->second];
                 meshVertices.resize(uvsAccessor.count);
                 fastgltf::iterateAccessorWithIndex<ende::math::Vec<2, f32>>(asset.get(), uvsAccessor, [&](ende::math::Vec<2, f32> uvs, u32 idx) {
-                    meshVertices[idx].uvs = uvs;
+                    meshVertices[idx].uv = uvs;
                 });
             }
 
@@ -170,12 +160,18 @@ int main(int argc, char* argv[]) {
             std::vector<Meshlet> meshMeshlets;
             meshMeshlets.reserve(meshletCount);
             for (auto& meshlet : meshoptMeshlets) {
+                auto bounds = meshopt_computeMeshletBounds(&meshletIndices[meshlet.vertex_offset], &meshletPrimitives[meshlet.triangle_offset], meshlet.triangle_count, (f32*)meshVertices.data(), meshVertices.size(), sizeof(Vertex));
+
+                ende::math::Vec3f center = { bounds.center[0], bounds.center[1], bounds.center[2] };
+
                 meshMeshlets.push_back({
                     .vertexOffset = firstVertex,
                     .indexOffset = meshlet.vertex_offset + firstIndex,
                     .indexCount = meshlet.vertex_count,
                     .primitiveOffset = meshlet.triangle_offset + firstPrimitive,
-                    .primitiveCount = meshlet.triangle_count
+                    .primitiveCount = meshlet.triangle_count,
+                    .center = center,
+                    .radius = bounds.radius
                 });
             }
 
@@ -239,6 +235,18 @@ int main(int argc, char* argv[]) {
     uploadBuffer.flushStagedData();
     uploadBuffer.wait();
 
+    auto cullMeshletPipeline = engine.pipelineManager().getPipeline({
+        .compute = { .module = engine.pipelineManager().getShader({
+            .path = "shaders/cull_meshlets.comp",
+            .stage = canta::ShaderStage::COMPUTE
+        })}
+    });
+    auto writeMeshletCommandPipeline = engine.pipelineManager().getPipeline({
+        .compute = { .module = engine.pipelineManager().getShader({
+            .path = "shaders/write_meshlet_command.comp",
+            .stage = canta::ShaderStage::COMPUTE
+        })}
+    });
 
     auto meshShader = engine.pipelineManager().getShader({
         .path = "shaders/default.mesh",
@@ -341,6 +349,7 @@ int main(int argc, char* argv[]) {
         engine.device()->beginFrame();
         engine.device()->gc();
 
+        camera.updateFrustum();
         auto gpuCamera = camera.gpuCamera();
         cameraBuffers[engine.device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)));
 
@@ -392,6 +401,14 @@ int main(int argc, char* argv[]) {
             .handle = meshletBuffer,
             .name = "meshlet_buffer"
         });
+        auto meshletInstanceBufferIndex = renderGraph.addBuffer({
+            .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * meshlets.size()),
+            .name = "meshlet_instance_buffer"
+        });
+        auto meshletCommandBufferIndex = renderGraph.addBuffer({
+            .size = sizeof(DispatchIndirectCommand),
+            .name = "meshlet_command_buffer"
+        });
         auto cameraBufferIndex = renderGraph.addBuffer({
             .handle = cameraBuffers[engine.device()->flyingIndex()],
             .name = "camera_buffer"
@@ -403,17 +420,66 @@ int main(int argc, char* argv[]) {
             .name = "depth_image"
         });
 
+        auto& cullMeshletsPass = renderGraph.addPass("cull_meshlets", canta::RenderPass::Type::COMPUTE);
+        cullMeshletsPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+        cullMeshletsPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+        cullMeshletsPass.addStorageBufferWrite(meshletInstanceBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+        cullMeshletsPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
+            auto meshletInstanceBuffer = graph.getBuffer(meshletInstanceBufferIndex);
+            auto cameraBuffer = graph.getBuffer(cameraBufferIndex);
+
+            cmd.bindPipeline(cullMeshletPipeline);
+            struct Push {
+                u64 meshletBuffer;
+                u64 meshletInstanceBuffer;
+                u64 cameraBuffer;
+                u32 meshletCount;
+                u32 padding;
+            };
+            cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                .meshletBuffer = meshletBuffer->address(),
+                .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                .cameraBuffer = cameraBuffer->address(),
+                .meshletCount = static_cast<u32>(meshlets.size())
+            });
+            cmd.dispatchWorkgroups(meshlets.size());
+        });
+//        auto meshletInstanceAlias = renderGraph.addAlias(meshletInstanceBufferIndex);
+        auto& writeMeshletCommandPass = renderGraph.addPass("write_meshlet_command", canta::RenderPass::Type::COMPUTE);
+        writeMeshletCommandPass.addStorageBufferRead(meshletInstanceBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+        writeMeshletCommandPass.addStorageBufferWrite(meshletCommandBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+        writeMeshletCommandPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            auto meshletInstanceBuffer = graph.getBuffer(meshletInstanceBufferIndex);
+            auto meshletCommandBuffer = graph.getBuffer(meshletCommandBufferIndex);
+
+            cmd.bindPipeline(writeMeshletCommandPipeline);
+            struct Push {
+                u64 meshletInstanceBuffer;
+                u64 commandBuffer;
+            };
+            cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                    .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                    .commandBuffer = meshletCommandBuffer->address()
+            });
+            cmd.dispatchWorkgroups();
+        });
+
         if (engine.device()->meshShadersEnabled()) {
             auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
+            geometryPass.addIndirectRead(meshletCommandBufferIndex);
             geometryPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::MESH_SHADER);
             geometryPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::MESH_SHADER);
             geometryPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::MESH_SHADER);
             geometryPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::MESH_SHADER);
+            geometryPass.addStorageBufferRead(meshletInstanceBufferIndex, canta::PipelineStage::MESH_SHADER);
             geometryPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::MESH_SHADER);
             geometryPass.addColourWrite(swapchainIndex);
             geometryPass.addDepthWrite(depthIndex);
             geometryPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto meshletCommandBuffer = graph.getBuffer(meshletCommandBufferIndex);
                 auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
+                auto meshletInstanceBuffer = graph.getBuffer(meshletInstanceBufferIndex);
                 auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
                 auto indexBuffer = graph.getBuffer(indexBufferIndex);
                 auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
@@ -423,6 +489,7 @@ int main(int argc, char* argv[]) {
                 cmd.setViewport({ 1920, 1080 });
                 struct Push {
                     u64 meshletBuffer;
+                    u64 meshletInstanceBuffer;
                     u64 vertexBuffer;
                     u64 indexBuffer;
                     u64 primitiveBuffer;
@@ -430,12 +497,14 @@ int main(int argc, char* argv[]) {
                 };
                 cmd.pushConstants(canta::ShaderStage::MESH, Push {
                         .meshletBuffer = meshletBuffer->address(),
+                        .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                         .vertexBuffer = vertexBuffer->address(),
                         .indexBuffer = indexBuffer->address(),
                         .primitiveBuffer = primitiveBuffer->address(),
                         .cameraBuffer = cameraBuffer->address()
                 });
-                cmd.drawMeshTasksWorkgroups(meshlets.size(), 1, 1);
+//                cmd.drawMeshTasksWorkgroups(meshlets.size(), 1, 1);
+                cmd.drawMeshTasksIndirect(meshletCommandBuffer, 0, 1);
             });
         } else {
             auto outputIndicesIndex = renderGraph.addBuffer({
@@ -458,16 +527,20 @@ int main(int argc, char* argv[]) {
             });
 
             auto& outputIndexBufferPass = renderGraph.addPass("output_index_buffer", canta::RenderPass::Type::COMPUTE);
+            outputIndexBufferPass.addIndirectRead(meshletCommandBufferIndex);
             outputIndexBufferPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(meshletInstanceBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(outputIndicesAlias, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(outputIndicesIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(drawCommandsAlias, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(drawCommandsIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto meshletCommandBuffer = graph.getBuffer(meshletCommandBufferIndex);
                 auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
+                auto meshletInstanceBuffer = graph.getBuffer(meshletInstanceBufferIndex);
                 auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
                 auto indexBuffer = graph.getBuffer(indexBufferIndex);
                 auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
@@ -477,6 +550,7 @@ int main(int argc, char* argv[]) {
                 cmd.bindPipeline(outputIndicesPipeline);
                 struct Push {
                     u64 meshletBuffer;
+                    u64 meshletInstanceBuffer;
                     u64 vertexBuffer;
                     u64 indexBuffer;
                     u64 primitiveBuffer;
@@ -485,13 +559,15 @@ int main(int argc, char* argv[]) {
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                         .meshletBuffer = meshletBuffer->address(),
+                        .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                         .vertexBuffer = vertexBuffer->address(),
                         .indexBuffer = indexBuffer->address(),
                         .primitiveBuffer = primitiveBuffer->address(),
                         .outputIndexBuffer = outputIndexBuffer->address(),
                         .drawCommandsBuffer = drawCommandsBuffer->address()
                 });
-                cmd.dispatchWorkgroups(meshlets.size(), 1, 1);
+//                cmd.dispatchWorkgroups(meshlets.size(), 1, 1);
+                cmd.dispatchIndirect(meshletCommandBuffer, 0);
             });
 
             auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);

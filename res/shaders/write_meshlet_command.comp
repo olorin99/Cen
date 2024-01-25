@@ -1,0 +1,26 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference2 : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
+
+#include "shaders/cen.glsl"
+
+layout (push_constant) uniform Push {
+    MeshletInstanceBuffer meshletInstanceBuffer;
+    DispatchIndirectCommandBuffer commandBuffer;
+};
+
+layout (local_size_x = 1) in;
+void main() {
+
+    uint meshletCount = meshletInstanceBuffer.count;
+    DispatchIndirectCommand command;
+    command.x = meshletCount;
+    command.y = 1;
+    command.z = 1;
+    commandBuffer.command = command;
+
+}

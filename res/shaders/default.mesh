@@ -7,30 +7,12 @@
 #extension GL_EXT_shader_explicit_arithmetic_types : enable
 #extension GL_EXT_mesh_shader : enable
 
+#include "shaders/cen.glsl"
+
 layout (location = 0) out VsOut {
     flat uint drawId;
     flat uint meshletId;
 } meshOut[];
-
-struct Meshlet {
-    uint vertexOffset;
-    uint indexOffset;
-    uint indexCount;
-    uint primitiveOffset;
-    uint primitiveCount;
-};
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer MeshletBuffer {
-    Meshlet meshlets[];
-};
-
-struct Vertex {
-    vec3 position;
-    vec3 normal;
-    vec2 uv;
-};
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer VertexBuffer {
-    Vertex vertices[];
-};
 
 layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer IndexBuffer {
     uint indices[];
@@ -40,24 +22,9 @@ layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer Pr
     uint8_t primitives[];
 };
 
-struct Frustum {
-    vec4 planes[6];
-    vec4 corners[8];
-};
-struct GPUCamera {
-    mat4 projection;
-    mat4 view;
-    vec3 position;
-    float near;
-    float far;
-    Frustum frustum;
-};
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer CameraBuffer {
-    GPUCamera camera;
-};
-
 layout (push_constant) uniform Push {
     MeshletBuffer meshletBuffer;
+    MeshletInstanceBuffer meshletInstanceBuffer;
     VertexBuffer vertexBuffer;
     IndexBuffer indexBuffer;
     PrimitiveBuffer primitiveBuffer;
@@ -73,7 +40,8 @@ void main() {
     GPUCamera camera = cameraBuffer.camera;
 //    mat4 model = globalData.transformsBuffer.transforms[payload.meshIndex];
 
-    Meshlet meshlet = meshletBuffer.meshlets[gl_WorkGroupID.x];
+    MeshletInstance instance = meshletInstanceBuffer.instances[gl_WorkGroupID.x];
+    Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
 
     SetMeshOutputsEXT(meshlet.indexCount, meshlet.primitiveCount);
 

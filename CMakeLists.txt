@@ -15,6 +15,7 @@ add_subdirectory(third_party)
 target_include_directories(Cen
     PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/include
+    res/shaders
     PRIVATE
     src
 )

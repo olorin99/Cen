@@ -1,0 +1,51 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference2 : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
+
+#include "shaders/cen.glsl"
+
+layout (push_constant) uniform Push {
+    MeshletBuffer meshletBuffer;
+    MeshletInstanceBuffer meshletInstanceBuffer;
+    CameraBuffer cameraBuffer;
+    uint meshletCount;
+    uint padding;
+};
+
+bool frustumCheck(vec3 pos, float radius) {
+    GPUCamera cullingCamera = cameraBuffer.camera;
+
+    for (int i = 0; i < 6; i++) {
+        if (dot(vec4(pos, 1.0), cullingCamera.frustum.planes[i]) + radius < 0.0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+layout (local_size_x = 64) in;
+void main() {
+
+    uint threadIndex = gl_GlobalInvocationID.x;
+    if (threadIndex == 0) {
+        meshletInstanceBuffer.count = 0;
+    }
+    barrier();
+
+    bool visible = false;
+    if (threadIndex < meshletCount) {
+        Meshlet meshlet = meshletBuffer.meshlets[threadIndex];
+        visible = frustumCheck(meshlet.center, meshlet.radius);
+    }
+    if (visible) {
+        uint index = atomicAdd(meshletInstanceBuffer.count, 1);
+        MeshletInstance instance;
+        instance.meshId = 0;
+        instance.meshletId = threadIndex;
+        meshletInstanceBuffer.instances[index] = instance;
+    }
+}
