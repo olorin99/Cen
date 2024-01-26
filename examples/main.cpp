@@ -423,43 +423,51 @@ int main(int argc, char* argv[]) {
                     }
                 }
 
-                auto resourceStats = engine.device()->resourceStats();
-                ImGui::Text("Shader Count %d", resourceStats.shaderCount);
-                ImGui::Text("Shader Allocated %d", resourceStats.shaderAllocated);
-                ImGui::Text("Pipeline Count %d", resourceStats.pipelineCount);
-                ImGui::Text("Pipeline Allocated %d", resourceStats.pipelineAllocated);
-                ImGui::Text("Image Count %d", resourceStats.imageCount);
-                ImGui::Text("Image Allocated %d", resourceStats.imageAllocated);
-                ImGui::Text("Buffer Count %d", resourceStats.bufferCount);
-                ImGui::Text("Buffer Allocated %d", resourceStats.bufferAllocated);
-                ImGui::Text("Sampler Count %d", resourceStats.samplerCount);
-                ImGui::Text("Sampler Allocated %d", resourceStats.shaderAllocated);
-                ImGui::Text("Timestamp Query Pools %d", resourceStats.timestampQueryPools);
-                ImGui::Text("PipelineStats Pools %d", resourceStats.pipelineStatsPools);
+                if (ImGui::TreeNode("Resource Stats")) {
+                    auto resourceStats = engine.device()->resourceStats();
+                    ImGui::Text("Shader Count %d", resourceStats.shaderCount);
+                    ImGui::Text("Shader Allocated %d", resourceStats.shaderAllocated);
+                    ImGui::Text("Pipeline Count %d", resourceStats.pipelineCount);
+                    ImGui::Text("Pipeline Allocated %d", resourceStats.pipelineAllocated);
+                    ImGui::Text("Image Count %d", resourceStats.imageCount);
+                    ImGui::Text("Image Allocated %d", resourceStats.imageAllocated);
+                    ImGui::Text("Buffer Count %d", resourceStats.bufferCount);
+                    ImGui::Text("Buffer Allocated %d", resourceStats.bufferAllocated);
+                    ImGui::Text("Sampler Count %d", resourceStats.samplerCount);
+                    ImGui::Text("Sampler Allocated %d", resourceStats.shaderAllocated);
+                    ImGui::Text("Timestamp Query Pools %d", resourceStats.timestampQueryPools);
+                    ImGui::Text("PipelineStats Pools %d", resourceStats.pipelineStatsPools);
+                    ImGui::TreePop();
+                }
+                if (ImGui::TreeNode("RenderGraph Stats")) {
+                    auto renderGraphStats = renderGraph.statistics();
+                    ImGui::Text("Passes: %d", renderGraphStats.passes);
+                    ImGui::Text("Resource: %d", renderGraphStats.resources);
+                    ImGui::Text("Image: %d", renderGraphStats.images);
+                    ImGui::Text("Buffers: %d", renderGraphStats.buffers);
+                    ImGui::Text("Command Buffers: %d", renderGraphStats.commandBuffers);
+                    ImGui::TreePop();
+                }
 
-                auto renderGraphStats = renderGraph.statistics();
-                ImGui::Text("Passes: %d", renderGraphStats.passes);
-                ImGui::Text("Resource: %d", renderGraphStats.resources);
-                ImGui::Text("Image: %d", renderGraphStats.images);
-                ImGui::Text("Buffers: %d", renderGraphStats.buffers);
-                ImGui::Text("Command Buffers: %d", renderGraphStats.commandBuffers);
+                if (ImGui::TreeNode("Memory Stats")) {
+                    VmaTotalStatistics statistics = {};
+                    vmaCalculateStatistics(engine.device()->allocator(), &statistics);
+                    for (auto& stats : statistics.memoryHeap) {
+                        if (stats.unusedRangeSizeMax == 0 && stats.allocationSizeMax == 0)
+                            break;
+                        ImGui::Separator();
+                        ImGui::Text("\tAllocations: %u", stats.statistics.allocationCount);
+                        ImGui::Text("\tAllocations size: %lu", stats.statistics.allocationBytes / 1000000);
+                        ImGui::Text("\tAllocated blocks: %u", stats.statistics.blockCount);
+                        ImGui::Text("\tBlock size: %lu mb", stats.statistics.blockBytes / 1000000);
 
-                VmaTotalStatistics statistics = {};
-                vmaCalculateStatistics(engine.device()->allocator(), &statistics);
-                for (auto& stats : statistics.memoryHeap) {
-                    if (stats.unusedRangeSizeMax == 0 && stats.allocationSizeMax == 0)
-                        break;
-                    ImGui::Separator();
-                    ImGui::Text("\tAllocations: %u", stats.statistics.allocationCount);
-                    ImGui::Text("\tAllocations size: %lu", stats.statistics.allocationBytes / 1000000);
-                    ImGui::Text("\tAllocated blocks: %u", stats.statistics.blockCount);
-                    ImGui::Text("\tBlock size: %lu mb", stats.statistics.blockBytes / 1000000);
-
-                    ImGui::Text("\tLargest allocation: %lu mb", stats.allocationSizeMax / 1000000);
-                    ImGui::Text("\tSmallest allocation: %lu b", stats.allocationSizeMin);
-                    ImGui::Text("\tUnused range count: %u", stats.unusedRangeCount);
-                    ImGui::Text("\tUnused range max: %lu mb", stats.unusedRangeSizeMax / 1000000);
-                    ImGui::Text("\tUnused range min: %lu b", stats.unusedRangeSizeMin);
+                        ImGui::Text("\tLargest allocation: %lu mb", stats.allocationSizeMax / 1000000);
+                        ImGui::Text("\tSmallest allocation: %lu b", stats.allocationSizeMin);
+                        ImGui::Text("\tUnused range count: %u", stats.unusedRangeCount);
+                        ImGui::Text("\tUnused range max: %lu mb", stats.unusedRangeSizeMax / 1000000);
+                        ImGui::Text("\tUnused range min: %lu b", stats.unusedRangeSizeMin);
+                    }
+                    ImGui::TreePop();
                 }
             }
             ImGui::End();
