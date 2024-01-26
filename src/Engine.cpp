@@ -5,14 +5,14 @@ auto cen::Engine::create(CreateInfo info) -> Engine {
 
     engine._device = canta::Device::create({
         .applicationName = "Cen",
-        .enableMeshShading = true,
+        .enableMeshShading = info.meshShadingEnabled,
         .instanceExtensions = info.window->requiredExtensions(),
     }).value();
     engine._pipelineManager = canta::PipelineManager::create({
         .device = engine.device(),
         .rootPath = info.assetPath
     });
-    engine._meshShadingEnabled = true;
+    engine._meshShadingEnabled = engine._device->meshShadersEnabled() && info.meshShadingEnabled;
 
     return engine;
 }

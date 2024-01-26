@@ -13,6 +13,7 @@ namespace cen {
             std::string_view applicationName = {};
             canta::Window* window = nullptr;
             std::filesystem::path assetPath = {};
+            bool meshShadingEnabled = true;
         };
         static auto create(CreateInfo info) -> Engine;
 

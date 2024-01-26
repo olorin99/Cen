@@ -34,7 +34,8 @@ int main(int argc, char* argv[]) {
     auto engine = cen::Engine::create({
         .applicationName = "CenMain",
         .window = &window,
-        .assetPath = std::filesystem::path(CEN_SRC_DIR) / "res"
+        .assetPath = std::filesystem::path(CEN_SRC_DIR) / "res",
+        .meshShadingEnabled = false
     });
     auto swapchain = engine.device()->createSwapchain({
         .window = &window
@@ -295,20 +296,6 @@ int main(int argc, char* argv[]) {
         .path = "shaders/default.frag",
         .stage = canta::ShaderStage::FRAGMENT
     });
-//    auto meshPipeline = engine.pipelineManager().getPipeline({
-//        .fragment = { .module = fragmentShader },
-//        .mesh = { .module = meshShader },
-//        .rasterState = {
-//            .cullMode = canta::CullMode::NONE
-//        },
-//        .depthState = {
-//            .test = true,
-//            .write = true,
-//            .compareOp = canta::CompareOp::LEQUAL
-//        },
-//        .colourFormats = std::to_array({ swapchain->format() }),
-//        .depthFormat = canta::Format::D32_SFLOAT
-//    });
 
     auto outputIndicesShader = engine.pipelineManager().getShader({
         .path = "shaders/output_indirect.comp",
