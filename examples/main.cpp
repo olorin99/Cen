@@ -190,14 +190,16 @@ int main(int argc, char* argv[]) {
 
     std::vector<ende::math::Mat4f> transforms;
     std::vector<GPUMesh> gpuMeshes;
-    for (u32 i = 0; i < 3; i++) {
-        gpuMeshes.push_back({
-            .meshletOffset = 0,
-            .meshletCount = static_cast<u32>(meshlets.size()),
-            .min = { -1, -1, -1 },
-            .max = { 1, 1, 1 },
-        });
-        transforms.push_back(ende::math::translation<4, f32>({ static_cast<f32>(i * 2), 0, 0 }));
+    for (u32 i = 0; i < 30; i++) {
+        for (u32 j = 0; j < 30; j++) {
+            gpuMeshes.push_back({
+                .meshletOffset = 0,
+                .meshletCount = static_cast<u32>(meshlets.size()),
+                .min = { -1, -1, -1 },
+                .max = { 1, 1, 1 },
+            });
+            transforms.push_back(ende::math::translation<4, f32>({ static_cast<f32>(i * 2), static_cast<f32>(j * 2), 0 }));
+        }
     }
 
     auto vertexBuffer = engine.device()->createBuffer({
@@ -243,7 +245,7 @@ int main(int argc, char* argv[]) {
     std::array<canta::BufferHandle, canta::FRAMES_IN_FLIGHT> cameraBuffers = {};
     for (auto& buffer : cameraBuffers) {
         buffer = engine.device()->createBuffer({
-            .size = sizeof(cen::GPUCamera),
+            .size = sizeof(cen::GPUCamera) * 2,
             .usage = canta::BufferUsage::STORAGE,
             .type = canta::MemoryType::STAGING,
             .persistentlyMapped = true,
@@ -334,6 +336,8 @@ int main(int argc, char* argv[]) {
         .depthFormat = canta::Format::D32_SFLOAT
     });
 
+    bool culling = true;
+
     f64 milliseconds = 16;
     f64 dt = 1.f / 60;
     bool running = true;
@@ -391,6 +395,8 @@ int main(int argc, char* argv[]) {
         camera.updateFrustum();
         auto gpuCamera = camera.gpuCamera();
         cameraBuffers[engine.device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)));
+        if (culling)
+            cameraBuffers[engine.device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)), sizeof(gpuCamera));
 
         {
             imguiContext.beginFrame();
@@ -473,6 +479,8 @@ int main(int argc, char* argv[]) {
             ImGui::End();
 
             if (ImGui::Begin("Settings")) {
+                ImGui::Checkbox("Culling", &culling);
+
                 auto meshShadingEnabled = engine.meshShadingEnabled();
                 if (ImGui::Checkbox("Mesh Shading", &meshShadingEnabled))
                     engine.setMeshShadingEnabled(meshShadingEnabled);
@@ -640,21 +648,16 @@ int main(int argc, char* argv[]) {
                 u64 meshletInstanceOutputBuffer;
                 u64 transformsBuffer;
                 u64 cameraBuffer;
-                u32 meshletCount;
-                u32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                 .meshletBuffer = meshletBuffer->address(),
                 .meshletInstanceInputBuffer = meshletInstanceInputBuffer->address(),
                 .meshletInstanceOutputBuffer = meshletInstanceOutputBuffer->address(),
                 .transformsBuffer = transformsBuffer->address(),
-                .cameraBuffer = cameraBuffer->address(),
-                .meshletCount = static_cast<u32>(meshlets.size())
+                .cameraBuffer = cameraBuffer->address()
             });
-//            cmd.dispatchThreads(meshlets.size());
             cmd.dispatchIndirect(meshCommandBuffer, 0);
         });
-//        auto meshletInstanceAlias = renderGraph.addAlias(meshletInstanceBufferIndex);
         auto& writeMeshletCommandPass = renderGraph.addPass("write_meshlet_command", canta::RenderPass::Type::COMPUTE);
         writeMeshletCommandPass.addStorageBufferRead(meshletInstanceBuffer2Index, canta::PipelineStage::COMPUTE_SHADER);
         writeMeshletCommandPass.addStorageBufferWrite(meshletCommandBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
@@ -742,24 +745,12 @@ int main(int argc, char* argv[]) {
                 .name = "draw_commands_buffer"
             });
 
-//            auto outputIndicesAlias = renderGraph.addAlias(outputIndicesIndex);
-//            auto drawCommandsAlias = renderGraph.addAlias(drawCommandsIndex);
-//            auto& clearPass = renderGraph.addPass("clear", canta::RenderPass::Type::COMPUTE);
-//            clearPass.addTransferWrite(outputIndicesAlias);
-//            clearPass.addTransferWrite(drawCommandsAlias);
-//            clearPass.setExecuteFunction([=](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
-//                cmd.clearBuffer(graph.getBuffer(outputIndicesAlias));
-//                cmd.clearBuffer(graph.getBuffer(drawCommandsAlias));
-//            });
-
             auto& outputIndexBufferPass = renderGraph.addPass("output_index_buffer", canta::RenderPass::Type::COMPUTE);
             outputIndexBufferPass.addIndirectRead(meshletCommandBufferIndex);
             outputIndexBufferPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(meshletInstanceBuffer2Index, canta::PipelineStage::COMPUTE_SHADER);
-//            outputIndexBufferPass.addStorageBufferRead(outputIndicesAlias, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(outputIndicesIndex, canta::PipelineStage::COMPUTE_SHADER);
-//            outputIndexBufferPass.addStorageBufferRead(drawCommandsAlias, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(drawCommandsIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
                 auto meshletCommandBuffer = graph.getBuffer(meshletCommandBufferIndex);
@@ -784,7 +775,6 @@ int main(int argc, char* argv[]) {
                         .outputIndexBuffer = outputIndexBuffer->address(),
                         .drawCommandsBuffer = drawCommandsBuffer->address()
                 });
-//                cmd.dispatchWorkgroups(meshlets.size(), 1, 1);
                 cmd.dispatchIndirect(meshletCommandBuffer, 0);
             });
 
