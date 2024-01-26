@@ -83,9 +83,20 @@ struct Vertex {
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer VertexBuffer {
     Vertex vertices[];
 };
-#endif
 
-#ifndef __cplusplus
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer IndexBuffer {
+    uint indices[];
+};
+
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer PrimitiveBuffer {
+    uint8_t primitives[];
+};
+
+layout (scalar, buffer_reference, buffer_reference_align = 4) buffer MeshletIndexBuffer {
+    uint indexCount;
+    uint indices[];
+};
+
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer TransformsBuffer {
     mat4 transforms[];
 };
@@ -104,9 +115,30 @@ struct GPUCamera {
     Frustum frustum;
 };
 #ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer CameraBuffer {
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer CameraBuffer {
     GPUCamera camera;
 };
 #endif
+
+#define MESHLET_ID_BITS 26
+#define PRIMITIVE_ID_BITS 6
+#define MESHLET_MASK ((1u << MESHLET_ID_BITS) - 1u)
+#define PRIMITIVE_MASK ((1u << PRIMITIVE_ID_BITS) - 1u)
+
+uint setMeshletID(uint meshletID) {
+    return meshletID << PRIMITIVE_ID_BITS;
+}
+
+uint setPrimitiveID(uint primitiveID) {
+    return primitiveID & PRIMITIVE_MASK;
+}
+
+uint getMeshletID(uint visibility) {
+    return (visibility >> PRIMITIVE_ID_BITS) & MESHLET_MASK;
+}
+
+uint getPrimitiveID(uint visibility) {
+    return uint(visibility & PRIMITIVE_MASK);
+}
 
 #endif

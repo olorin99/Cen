@@ -20,6 +20,9 @@ namespace cen {
 
         auto pipelineManager() -> canta::PipelineManager& { return _pipelineManager; }
 
+        auto meshShadingEnabled() const -> bool { return _meshShadingEnabled; }
+        auto setMeshShadingEnabled(bool enabled) -> bool;
+
     private:
 
         Engine() = default;
@@ -27,6 +30,7 @@ namespace cen {
         std::unique_ptr<canta::Device> _device = {};
         canta::PipelineManager _pipelineManager = {};
 
+        bool _meshShadingEnabled = true;
 
     };
 

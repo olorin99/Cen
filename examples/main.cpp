@@ -41,7 +41,8 @@ int main(int argc, char* argv[]) {
     });
 
     auto renderGraph = canta::RenderGraph::create({
-        .device = engine.device()
+        .device = engine.device(),
+        .name = "RenderGraph"
     });
     auto imguiContext = canta::ImGuiContext::create({
         .device = engine.device(),
@@ -333,6 +334,7 @@ int main(int argc, char* argv[]) {
         .depthFormat = canta::Format::D32_SFLOAT
     });
 
+    f64 milliseconds = 16;
     f64 dt = 1.f / 60;
     bool running = true;
     SDL_Event event;
@@ -384,6 +386,7 @@ int main(int argc, char* argv[]) {
 
         engine.device()->beginFrame();
         engine.device()->gc();
+        renderGraph.reset();
 
         camera.updateFrustum();
         auto gpuCamera = camera.gpuCamera();
@@ -394,11 +397,30 @@ int main(int argc, char* argv[]) {
             ImGui::ShowDemoWindow();
 
             if (ImGui::Begin("Stats")) {
+                ImGui::Text("Milliseconds: %f", milliseconds);
                 ImGui::Text("Delta Time: %f", dt);
 
                 auto timers = renderGraph.timers();
                 for (auto& timer : timers) {
-                    ImGui::Text("%s: %f", timer.first.c_str(), timer.second.result().value() / 1000000.f);
+                    ImGui::Text("%s: %f ms", timer.first.c_str(), timer.second.result().value() / 1000000.f);
+                }
+                auto pipelineStatistics = renderGraph.pipelineStatistics();
+                for (auto& pipelineStats : pipelineStatistics) {
+                    if (ImGui::TreeNode(pipelineStats.first.c_str())) {
+                        auto stats = pipelineStats.second.result().value();
+                        ImGui::Text("Input Assembly Vertices: %d", stats.inputAssemblyVertices);
+                        ImGui::Text("Input Assembly Primitives: %d", stats.inputAssemblyPrimitives);
+                        ImGui::Text("Vertex Shader Invocations: %d", stats.vertexShaderInvocations);
+                        ImGui::Text("Geometry Shader Invocations: %d", stats.geometryShaderInvocations);
+                        ImGui::Text("Geometry Shader Primitives: %d", stats.geometryShaderPrimitives);
+                        ImGui::Text("Clipping Invocations: %d", stats.clippingInvocations);
+                        ImGui::Text("Clipping Primitives: %d", stats.clippingPrimitives);
+                        ImGui::Text("Fragment Shader Invocations: %d", stats.fragmentShaderInvocations);
+                        ImGui::Text("Tessellation Control Shader Patches: %d", stats.tessellationControlShaderPatches);
+                        ImGui::Text("Tessellation Evaluation Shader Invocations: %d", stats.tessellationEvaluationShaderInvocations);
+                        ImGui::Text("Compute Shader Invocations: %d", stats.computeShaderInvocations);
+                        ImGui::TreePop();
+                    }
                 }
 
                 auto resourceStats = engine.device()->resourceStats();
@@ -412,6 +434,53 @@ int main(int argc, char* argv[]) {
                 ImGui::Text("Buffer Allocated %d", resourceStats.bufferAllocated);
                 ImGui::Text("Sampler Count %d", resourceStats.samplerCount);
                 ImGui::Text("Sampler Allocated %d", resourceStats.shaderAllocated);
+                ImGui::Text("Timestamp Query Pools %d", resourceStats.timestampQueryPools);
+                ImGui::Text("PipelineStats Pools %d", resourceStats.pipelineStatsPools);
+
+                auto renderGraphStats = renderGraph.statistics();
+                ImGui::Text("Passes: %d", renderGraphStats.passes);
+                ImGui::Text("Resource: %d", renderGraphStats.resources);
+                ImGui::Text("Image: %d", renderGraphStats.images);
+                ImGui::Text("Buffers: %d", renderGraphStats.buffers);
+                ImGui::Text("Command Buffers: %d", renderGraphStats.commandBuffers);
+
+                VmaTotalStatistics statistics = {};
+                vmaCalculateStatistics(engine.device()->allocator(), &statistics);
+                for (auto& stats : statistics.memoryHeap) {
+                    if (stats.unusedRangeSizeMax == 0 && stats.allocationSizeMax == 0)
+                        break;
+                    ImGui::Separator();
+                    ImGui::Text("\tAllocations: %u", stats.statistics.allocationCount);
+                    ImGui::Text("\tAllocations size: %lu", stats.statistics.allocationBytes / 1000000);
+                    ImGui::Text("\tAllocated blocks: %u", stats.statistics.blockCount);
+                    ImGui::Text("\tBlock size: %lu mb", stats.statistics.blockBytes / 1000000);
+
+                    ImGui::Text("\tLargest allocation: %lu mb", stats.allocationSizeMax / 1000000);
+                    ImGui::Text("\tSmallest allocation: %lu b", stats.allocationSizeMin);
+                    ImGui::Text("\tUnused range count: %u", stats.unusedRangeCount);
+                    ImGui::Text("\tUnused range max: %lu mb", stats.unusedRangeSizeMax / 1000000);
+                    ImGui::Text("\tUnused range min: %lu b", stats.unusedRangeSizeMin);
+                }
+            }
+            ImGui::End();
+
+            if (ImGui::Begin("Settings")) {
+                auto meshShadingEnabled = engine.meshShadingEnabled();
+                if (ImGui::Checkbox("Mesh Shading", &meshShadingEnabled))
+                    engine.setMeshShadingEnabled(meshShadingEnabled);
+
+                auto timingEnabled = renderGraph.timingEnabled();
+                if (ImGui::Checkbox("RenderGraph Timing", &timingEnabled))
+                    renderGraph.setTimingEnabled(timingEnabled);
+                auto individualTiming = renderGraph.individualTiming();
+                if (ImGui::Checkbox("RenderGraph Per Pass Timing", &individualTiming))
+                    renderGraph.setIndividualTiming(individualTiming);
+                auto pipelineStatsEnabled = renderGraph.pipelineStatisticsEnabled();
+                if (ImGui::Checkbox("RenderGraph PiplelineStats", &pipelineStatsEnabled))
+                    renderGraph.setPipelineStatisticsEnabled(pipelineStatsEnabled);
+                auto individualPipelineStatistics = renderGraph.individualPipelineStatistics();
+                if (ImGui::Checkbox("RenderGraph Per Pass PiplelineStats", &individualPipelineStatistics))
+                    renderGraph.setIndividualPipelineStatistics(individualPipelineStatistics);
 
 
                 const char* modes[] = { "FIFO", "MAILBOX", "IMMEDIATE" };
@@ -597,7 +666,7 @@ int main(int argc, char* argv[]) {
             cmd.dispatchWorkgroups();
         });
 
-        if (engine.device()->meshShadersEnabled()) {
+        if (engine.meshShadingEnabled()) {
             auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
             geometryPass.addIndirectRead(meshletCommandBufferIndex);
             geometryPass.addStorageBufferRead(transformsIndex, canta::PipelineStage::MESH_SHADER);
@@ -657,11 +726,11 @@ int main(int argc, char* argv[]) {
             });
         } else {
             auto outputIndicesIndex = renderGraph.addBuffer({
-                .size = static_cast<u32>(meshlets.size() * 64 * 3 * sizeof(u32)),
+                .size = static_cast<u32>(meshlets.size() * gpuMeshes.size() * 64 * 3 * sizeof(u32)),
                 .name = "output_indices_buffer"
             });
             auto drawCommandsIndex = renderGraph.addBuffer({
-                .size = static_cast<u32>(sizeof(u32) + meshlets.size() * sizeof(VkDrawIndexedIndirectCommand)),
+                .size = static_cast<u32>(sizeof(u32) + meshlets.size() * gpuMeshes.size() * sizeof(VkDrawIndexedIndirectCommand)),
                 .name = "draw_commands_buffer"
             });
 
@@ -677,8 +746,6 @@ int main(int argc, char* argv[]) {
 
             auto& outputIndexBufferPass = renderGraph.addPass("output_index_buffer", canta::RenderPass::Type::COMPUTE);
             outputIndexBufferPass.addIndirectRead(meshletCommandBufferIndex);
-            outputIndexBufferPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
-            outputIndexBufferPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(meshletInstanceBuffer2Index, canta::PipelineStage::COMPUTE_SHADER);
@@ -690,8 +757,6 @@ int main(int argc, char* argv[]) {
                 auto meshletCommandBuffer = graph.getBuffer(meshletCommandBufferIndex);
                 auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
                 auto meshletInstanceBuffer = graph.getBuffer(meshletInstanceBuffer2Index);
-                auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
-                auto indexBuffer = graph.getBuffer(indexBufferIndex);
                 auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
                 auto outputIndexBuffer = graph.getBuffer(outputIndicesIndex);
                 auto drawCommandsBuffer = graph.getBuffer(drawCommandsIndex);
@@ -700,8 +765,6 @@ int main(int argc, char* argv[]) {
                 struct Push {
                     u64 meshletBuffer;
                     u64 meshletInstanceBuffer;
-                    u64 vertexBuffer;
-                    u64 indexBuffer;
                     u64 primitiveBuffer;
                     u64 outputIndexBuffer;
                     u64 drawCommandsBuffer;
@@ -709,8 +772,6 @@ int main(int argc, char* argv[]) {
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                         .meshletBuffer = meshletBuffer->address(),
                         .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                        .vertexBuffer = vertexBuffer->address(),
-                        .indexBuffer = indexBuffer->address(),
                         .primitiveBuffer = primitiveBuffer->address(),
                         .outputIndexBuffer = outputIndexBuffer->address(),
                         .drawCommandsBuffer = drawCommandsBuffer->address()
@@ -720,32 +781,45 @@ int main(int argc, char* argv[]) {
             });
 
             auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
-            geometryPass.addStorageBufferRead(transformsIndex, canta::PipelineStage::VERTEX_SHADER);
+            geometryPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::VERTEX_SHADER);
+            geometryPass.addStorageBufferRead(meshletInstanceBuffer2Index, canta::PipelineStage::VERTEX_SHADER);
+            geometryPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::VERTEX_SHADER);
+            geometryPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::VERTEX_SHADER);
             geometryPass.addStorageBufferRead(outputIndicesIndex, canta::PipelineStage::VERTEX_SHADER);
+            geometryPass.addStorageBufferRead(transformsIndex, canta::PipelineStage::VERTEX_SHADER);
             geometryPass.addIndirectRead(drawCommandsIndex);
             geometryPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::VERTEX_SHADER);
             geometryPass.addColourWrite(swapchainIndex);
             geometryPass.addDepthWrite(depthIndex);
             geometryPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
+                auto meshletInstanceBuffer = graph.getBuffer(meshletInstanceBuffer2Index);
                 auto transformsBuffer = graph.getBuffer(transformsIndex);
                 auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
-                auto indexBuffer = graph.getBuffer(outputIndicesIndex);
+                auto indexBuffer = graph.getBuffer(indexBufferIndex);
+                auto meshletIndexBuffer = graph.getBuffer(outputIndicesIndex);
                 auto cameraBuffer = graph.getBuffer(cameraBufferIndex);
                 auto drawCommandsBuffer = graph.getBuffer(drawCommandsIndex);
 
                 cmd.bindPipeline(vertexPipeline);
                 cmd.setViewport({ 1920, 1080 });
                 struct Push {
+                    u64 meshletBuffer;
+                    u64 meshletInstanceBuffer;
                     u64 vertexBuffer;
                     u64 indexBuffer;
+                    u64 meshletIndexBuffer;
                     u64 transformsBuffer;
                     u64 cameraBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::VERTEX, Push {
-                        .vertexBuffer = vertexBuffer->address(),
-                        .indexBuffer = indexBuffer->address(),
-                        .transformsBuffer = transformsBuffer->address(),
-                        .cameraBuffer = cameraBuffer->address()
+                    .meshletBuffer = meshletBuffer->address(),
+                    .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                    .vertexBuffer = vertexBuffer->address(),
+                    .indexBuffer = indexBuffer->address(),
+                    .meshletIndexBuffer = meshletIndexBuffer->address(),
+                    .transformsBuffer = transformsBuffer->address(),
+                    .cameraBuffer = cameraBuffer->address()
                 });
                 cmd.drawIndirectCount(drawCommandsBuffer, sizeof(u32), drawCommandsBuffer, 0);
             });
@@ -776,8 +850,8 @@ int main(int argc, char* argv[]) {
 
         swapchain->present();
 
-        dt = engine.device()->endFrame() / 1000;
-
+        milliseconds = engine.device()->endFrame();
+        dt = milliseconds / 1000.f;
 
     }
     engine.device()->waitIdle();

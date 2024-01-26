@@ -8,27 +8,13 @@
 
 #include "shaders/cen.glsl"
 
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer IndexBuffer {
-    uint indices[];
-};
-
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer PrimitiveBuffer {
-    uint8_t primitives[];
-};
-
-layout (scalar, buffer_reference, buffer_reference_align = 8) writeonly buffer OutputIndexBuffer {
-    uint indexCount;
-    uint indices[];
-};
-
-
 struct DrawIndirectCommand {
     uint vertexCount;
     uint instanceCount;
     uint firstVertex;
     uint firstInstance;
 };
-layout (scalar, buffer_reference, buffer_reference_align = 8) writeonly buffer DrawCommandBuffer {
+layout (scalar, buffer_reference, buffer_reference_align = 4) writeonly buffer DrawCommandBuffer {
     uint drawCount;
     DrawIndirectCommand commands[];
 };
@@ -36,10 +22,8 @@ layout (scalar, buffer_reference, buffer_reference_align = 8) writeonly buffer D
 layout (push_constant) uniform Push {
     MeshletBuffer meshletBuffer;
     MeshletInstanceBuffer meshletInstanceBuffer;
-    VertexBuffer vertexBuffer;
-    IndexBuffer indexBuffer;
     PrimitiveBuffer primitiveBuffer;
-    OutputIndexBuffer outputIndexBuffer;
+    MeshletIndexBuffer meshletIndexBuffer;
     DrawCommandBuffer drawCommandBuffer;
 };
 
@@ -49,7 +33,7 @@ layout (local_size_x = 64) in;
 void main() {
 
     if (gl_GlobalInvocationID.x == 0) {
-        outputIndexBuffer.indexCount = 0;
+        meshletIndexBuffer.indexCount = 0;
         drawCommandBuffer.drawCount = 0;
     }
     barrier();
@@ -58,9 +42,8 @@ void main() {
     MeshletInstance instance = meshletInstanceBuffer.instances[gl_WorkGroupID.x];
     Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
 
-    barrier();
-    if (threadIndex == 0) {
-        sharedIndexOffset = atomicAdd(outputIndexBuffer.indexCount, meshlet.primitiveCount * 3);
+    if (gl_LocalInvocationIndex == 0) {
+        sharedIndexOffset = atomicAdd(meshletIndexBuffer.indexCount, meshlet.primitiveCount * 3);
         uint drawIndex = atomicAdd(drawCommandBuffer.drawCount, 1);
         DrawIndirectCommand drawCommand;
         drawCommand.vertexCount = meshlet.primitiveCount * 3;
@@ -72,19 +55,15 @@ void main() {
     barrier();
 
     if (threadIndex < meshlet.primitiveCount) {
-        //TODO: change to only output meshlet id and primitive id then use for vertex pulling in vertex shader
-        uint primitive = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex];
         uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 0];
         uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 1];
         uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 2];
 
-        uint indexA = indexBuffer.indices[meshlet.indexOffset + a];
-        uint indexB = indexBuffer.indices[meshlet.indexOffset + b];
-        uint indexC = indexBuffer.indices[meshlet.indexOffset + c];
-
-        outputIndexBuffer.indices[sharedIndexOffset + threadIndex * 3 + 0] = indexA + meshlet.vertexOffset;
-        outputIndexBuffer.indices[sharedIndexOffset + threadIndex * 3 + 1] = indexB + meshlet.vertexOffset;
-        outputIndexBuffer.indices[sharedIndexOffset + threadIndex * 3 + 2] = indexC + meshlet.vertexOffset;
+        uint indexOffset = sharedIndexOffset + threadIndex * 3;
+        uint meshletId = gl_WorkGroupID.x;
+        meshletIndexBuffer.indices[indexOffset + 0] = setMeshletID(meshletId) | setPrimitiveID(a);
+        meshletIndexBuffer.indices[indexOffset + 1] = setMeshletID(meshletId) | setPrimitiveID(b);
+        meshletIndexBuffer.indices[indexOffset + 2] = setMeshletID(meshletId) | setPrimitiveID(c);
     }
 
 }

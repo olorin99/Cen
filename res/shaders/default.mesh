@@ -14,14 +14,6 @@ layout (location = 0) out VsOut {
     flat uint meshletId;
 } meshOut[];
 
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer IndexBuffer {
-    uint indices[];
-};
-
-layout (scalar, buffer_reference, buffer_reference_align = 8) readonly buffer PrimitiveBuffer {
-    uint8_t primitives[];
-};
-
 layout (push_constant) uniform Push {
     MeshletBuffer meshletBuffer;
     MeshletInstanceBuffer meshletInstanceBuffer;
@@ -39,7 +31,6 @@ void main() {
     uint threadIndex = gl_LocalInvocationIndex;
 
     GPUCamera camera = cameraBuffer.camera;
-//    mat4 model = globalData.transformsBuffer.transforms[payload.meshIndex];
 
     MeshletInstance instance = meshletInstanceBuffer.instances[gl_WorkGroupID.x];
     Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
@@ -51,7 +42,7 @@ void main() {
         Vertex vertex = vertexBuffer.vertices[index];
         vec4 fragPos = transformsBuffer.transforms[instance.meshId] * vec4(vertex.position, 1.0);
 
-        meshOut[threadIndex].drawId = 0;
+        meshOut[threadIndex].drawId = instance.meshId;
         meshOut[threadIndex].meshletId = instance.meshletId;
 
         gl_MeshVerticesEXT[threadIndex].gl_Position = camera.projection * camera.view * fragPos;

@@ -12,6 +12,12 @@ auto cen::Engine::create(CreateInfo info) -> Engine {
         .device = engine.device(),
         .rootPath = info.assetPath
     });
+    engine._meshShadingEnabled = true;
 
     return engine;
+}
+
+auto cen::Engine::setMeshShadingEnabled(bool enabled) -> bool {
+    _meshShadingEnabled = _device->meshShadersEnabled() && enabled;
+    return _meshShadingEnabled;
 }
