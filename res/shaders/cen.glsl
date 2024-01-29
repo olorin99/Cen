@@ -125,6 +125,7 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer Ca
 #define MESHLET_MASK ((1u << MESHLET_ID_BITS) - 1u)
 #define PRIMITIVE_MASK ((1u << PRIMITIVE_ID_BITS) - 1u)
 
+#ifndef __cplusplus
 uint setMeshletID(uint meshletID) {
     return meshletID << PRIMITIVE_ID_BITS;
 }
@@ -140,5 +141,6 @@ uint getMeshletID(uint visibility) {
 uint getPrimitiveID(uint visibility) {
     return uint(visibility & PRIMITIVE_MASK);
 }
+#endif
 
 #endif

@@ -5,6 +5,7 @@
 #include <Canta/UploadBuffer.h>
 #include <Cen/Engine.h>
 #include <Cen/Camera.h>
+#include <Cen/Scene.h>
 
 #include <fastgltf/parser.hpp>
 #include <fastgltf/types.hpp>
@@ -52,6 +53,10 @@ int main(int argc, char* argv[]) {
     auto uploadBuffer = canta::UploadBuffer::create({
         .device = engine.device(),
         .size = 1 << 16
+    });
+
+    auto scene = cen::Scene::create({
+        .engine = &engine
     });
 
 
@@ -189,17 +194,14 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::vector<ende::math::Mat4f> transforms;
-    std::vector<GPUMesh> gpuMeshes;
     for (u32 i = 0; i < 30; i++) {
         for (u32 j = 0; j < 30; j++) {
-            gpuMeshes.push_back({
+            scene.addMesh({
                 .meshletOffset = 0,
                 .meshletCount = static_cast<u32>(meshlets.size()),
                 .min = { -1, -1, -1 },
                 .max = { 1, 1, 1 },
-            });
-            transforms.push_back(ende::math::translation<4, f32>({ static_cast<f32>(i * 2), static_cast<f32>(j * 2), 0 }));
+            }, ende::math::translation<4, f32>({ static_cast<f32>(i * 2), static_cast<f32>(j * 2), 0 }));
         }
     }
 
@@ -219,19 +221,9 @@ int main(int argc, char* argv[]) {
         .name = "primitive_buffer"
     });
     auto meshletBuffer = engine.device()->createBuffer({
-        .size = static_cast<u32>(meshlets.size() * sizeof(Meshlet)),
+        .size = static_cast<u32>(scene.maxMeshlets() * sizeof(Meshlet)),
         .usage = canta::BufferUsage::STORAGE,
         .name = "meshlet_buffer"
-    });
-    auto meshBuffer = engine.device()->createBuffer({
-        .size = static_cast<u32>(sizeof(GPUMesh) * transforms.size()),
-        .usage = canta::BufferUsage::STORAGE,
-        .name = "transforms_buffer"
-    });
-    auto transformsBuffer = engine.device()->createBuffer({
-        .size = static_cast<u32>(sizeof(ende::math::Mat4f) * transforms.size()),
-        .usage = canta::BufferUsage::STORAGE,
-        .name = "transforms_buffer"
     });
     auto camera = cen::Camera::create({
         .position = { 0, 0, 2 },
@@ -258,8 +250,6 @@ int main(int argc, char* argv[]) {
     uploadBuffer.upload(indexBuffer, indices);
     uploadBuffer.upload(primitiveBuffer, primitives);
     uploadBuffer.upload(meshletBuffer, meshlets);
-    uploadBuffer.upload(meshBuffer, gpuMeshes);
-    uploadBuffer.upload(transformsBuffer, transforms);
     uploadBuffer.flushStagedData();
     uploadBuffer.wait();
 
@@ -367,6 +357,7 @@ int main(int argc, char* argv[]) {
 
         engine.device()->beginFrame();
         engine.device()->gc();
+        scene.prepare();
         renderGraph.reset();
 
         camera.updateFrustum();
@@ -519,7 +510,7 @@ int main(int argc, char* argv[]) {
             .name = "primitive_buffer"
         });
         auto meshBufferIndex = renderGraph.addBuffer({
-            .handle = meshBuffer,
+            .handle = scene._meshBuffer[engine.device()->flyingIndex()],
             .name = "mesh_buffer"
         });
         auto meshletBufferIndex = renderGraph.addBuffer({
@@ -527,11 +518,11 @@ int main(int argc, char* argv[]) {
             .name = "meshlet_buffer"
         });
         auto meshletInstanceBufferIndex = renderGraph.addBuffer({
-            .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * gpuMeshes.size() * meshlets.size()),
+            .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * scene.meshCount() * scene.maxMeshlets()),
             .name = "meshlet_instance_buffer"
         });
         auto meshletInstanceBuffer2Index = renderGraph.addBuffer({
-            .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * gpuMeshes.size() * meshlets.size()),
+            .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * scene.meshCount() * scene.maxMeshlets()),
             .name = "meshlet_instance_2_buffer"
         });
         auto meshletCommandBufferIndex = renderGraph.addBuffer({
@@ -543,7 +534,7 @@ int main(int argc, char* argv[]) {
             .name = "camera_buffer"
         });
         auto transformsIndex = renderGraph.addBuffer({
-            .handle = transformsBuffer,
+            .handle = scene._transformBuffer[engine.device()->flyingIndex()],
             .name = "transforms_buffer"
         });
 
@@ -579,9 +570,9 @@ int main(int argc, char* argv[]) {
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                     .transformsBuffer = transformsBuffer->address(),
                     .cameraBuffer = cameraBuffer->address(),
-                    .meshCount = static_cast<u32>(gpuMeshes.size())
+                    .meshCount = static_cast<u32>(scene.meshCount())
             });
-            cmd.dispatchThreads(gpuMeshes.size());
+            cmd.dispatchThreads(scene.meshCount());
         });
         auto meshCommandAlias = renderGraph.addAlias(meshletCommandBufferIndex);
         auto& writeMeshCommandPass = renderGraph.addPass("write_mesh_command", canta::RenderPass::Type::COMPUTE);
@@ -714,11 +705,11 @@ int main(int argc, char* argv[]) {
             });
         } else {
             auto outputIndicesIndex = renderGraph.addBuffer({
-                .size = static_cast<u32>(meshlets.size() * gpuMeshes.size() * 64 * 3 * sizeof(u32)),
+                .size = static_cast<u32>(scene.maxMeshlets() * scene.meshCount() * 64 * 3 * sizeof(u32)),
                 .name = "output_indices_buffer"
             });
             auto drawCommandsIndex = renderGraph.addBuffer({
-                .size = static_cast<u32>(sizeof(u32) + meshlets.size() * gpuMeshes.size() * sizeof(VkDrawIndexedIndirectCommand)),
+                .size = static_cast<u32>(sizeof(u32) + scene.maxMeshlets() * scene.meshCount() * sizeof(VkDrawIndexedIndirectCommand)),
                 .name = "draw_commands_buffer"
             });
 

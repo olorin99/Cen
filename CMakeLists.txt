@@ -12,7 +12,9 @@ add_library(Cen
         src/Engine.cpp
         include/Cen/Engine.h
         src/Camera.cpp
-        include/Cen/Camera.h)
+        include/Cen/Camera.h
+        src/Scene.cpp
+        include/Cen/Scene.h)
 
 add_subdirectory(third_party)
 target_include_directories(Cen
