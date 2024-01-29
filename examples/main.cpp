@@ -22,6 +22,17 @@ struct fastgltf::ElementTraits<ende::math::Vec<2, f32>> : fastgltf::ElementTrait
 template <>
 struct fastgltf::ElementTraits<ende::math::Vec4f> : fastgltf::ElementTraitsBase<ende::math::Vec4f, AccessorType::Vec4, float> {};
 
+std::string numberToWord(u32 number) {
+    if (number > 1000000000) {
+        return std::to_string(number / 1000000000) + " billion";
+    } else if (number > 1000000) {
+        return std::to_string(number / 1000000) + " million";
+    } else if (number > 1000) {
+        return std::to_string(number / 1000) + " thousand";
+    }
+    return std::to_string(number);
+}
+
 int main(int argc, char* argv[]) {
 
     std::filesystem::path gltfPath = {};
@@ -221,11 +232,26 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    auto globalBuffer = engine.device()->createBuffer({
-        .size = sizeof(GlobalData),
-        .usage = canta::BufferUsage::STORAGE,
-        .name = "global_data_buffer"
-    });
+    std::array<canta::BufferHandle, canta::FRAMES_IN_FLIGHT> globalBuffers = {};
+    for (u32 i = 0; auto& buffer : globalBuffers) {
+        buffer = engine.device()->createBuffer({
+            .size = sizeof(GlobalData),
+            .usage = canta::BufferUsage::STORAGE,
+            .type = canta::MemoryType::STAGING,
+            .persistentlyMapped = true,
+            .name = std::format("global_data_buffer: {}", i++)
+        });
+    }
+    std::array<canta::BufferHandle, canta::FRAMES_IN_FLIGHT> feedbackBuffers = {};
+    for (u32 i = 0; auto& buffer : feedbackBuffers) {
+        buffer = engine.device()->createBuffer({
+            .size = sizeof(FeedbackInfo),
+            .usage = canta::BufferUsage::STORAGE,
+            .type = canta::MemoryType::READBACK,
+            .persistentlyMapped = true,
+            .name = std::format("feedback_buffer: {}", i++)
+        });
+    }
     auto vertexBuffer = engine.device()->createBuffer({
         .size = static_cast<u32>(vertices.size() * sizeof(Vertex)),
         .usage = canta::BufferUsage::STORAGE,
@@ -267,13 +293,13 @@ int main(int argc, char* argv[]) {
         });
     }
 
+    FeedbackInfo feedbackInfo = {};
     GlobalData globalData = {
             .maxMeshCount = scene.meshCount(),
 //            .maxMeshletCount = scene.meshCount() * scene.maxMeshlets()
-            .maxMeshletCount = 4000000000
+            .maxMeshletCount = 10000000
     };
 
-    uploadBuffer.upload(globalBuffer, globalData);
     uploadBuffer.upload(vertexBuffer, vertices);
     uploadBuffer.upload(indexBuffer, indices);
     uploadBuffer.upload(primitiveBuffer, primitives);
@@ -342,6 +368,7 @@ int main(int argc, char* argv[]) {
     });
 
     bool culling = true;
+    bool numericalStats = true;
 
     f64 milliseconds = 16;
     f64 dt = 1.f / 60;
@@ -386,6 +413,10 @@ int main(int argc, char* argv[]) {
         engine.device()->beginFrame();
         engine.device()->gc();
         scene.prepare();
+        std::memcpy(&feedbackInfo, feedbackBuffers[engine.device()->flyingIndex()]->mapped().address(), sizeof(FeedbackInfo));
+        std::memset(feedbackBuffers[engine.device()->flyingIndex()]->mapped().address(), 0, sizeof(FeedbackInfo));
+        globalData.feedbackInfoRef = feedbackBuffers[engine.device()->flyingIndex()]->address();
+        globalBuffers[engine.device()->flyingIndex()]->data(globalData);
         renderGraph.reset();
 
         camera.updateFrustum();
@@ -423,6 +454,40 @@ int main(int argc, char* argv[]) {
                         ImGui::Text("Compute Shader Invocations: %d", stats.computeShaderInvocations);
                         ImGui::TreePop();
                     }
+                }
+
+                if (ImGui::TreeNode("Feedback")) {
+                    ImGui::Checkbox("Numerical Stats", &numericalStats);
+                    if (numericalStats) {
+                        ImGui::Text("Drawn Meshes: %d", feedbackInfo.meshesDrawn);
+                        ImGui::Text("Culled Meshes: %d", feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn);
+                        f32 culledMeshRatio = (static_cast<f32>(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn) / (static_cast<f32>(feedbackInfo.meshesDrawn) + static_cast<f32>(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn))) * 100;
+                        if (feedbackInfo.meshesDrawn + feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn == 0)
+                            culledMeshRatio = 0;
+                        ImGui::Text("Culled mesh ratio: %.0f%%", culledMeshRatio);
+                        ImGui::Text("Drawn Meshlets: %d", feedbackInfo.meshletsDrawn);
+                        ImGui::Text("Culled Meshlets: %d", feedbackInfo.meshletsTotal - feedbackInfo.meshletsDrawn);
+                        f32 culledMeshletRatio = (static_cast<f32>(feedbackInfo.meshletsTotal - feedbackInfo.meshletsDrawn) / (static_cast<f32>(feedbackInfo.meshletsDrawn) + static_cast<f32>(feedbackInfo.meshletsTotal - feedbackInfo.meshletsDrawn))) * 100;
+                        if (feedbackInfo.meshletsDrawn + feedbackInfo.meshletsTotal - feedbackInfo.meshletsDrawn == 0)
+                            culledMeshletRatio = 0;
+                        ImGui::Text("Culled meshlet ratio: %.0f%%", culledMeshletRatio);
+                        ImGui::Text("Drawn Triangles %d", feedbackInfo.trianglesDrawn);
+                    } else {
+                        ImGui::Text("Drawn Meshes: %s", numberToWord(feedbackInfo.meshesDrawn).c_str());
+                        ImGui::Text("Culled Meshes: %s", numberToWord(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn).c_str());
+                        f32 culledMeshRatio = (static_cast<f32>(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn) / (static_cast<f32>(feedbackInfo.meshesDrawn) + static_cast<f32>(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn))) * 100;
+                        if (feedbackInfo.meshesDrawn + feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn == 0)
+                            culledMeshRatio = 0;
+                        ImGui::Text("Culled mesh ratio: %.0f%%", culledMeshRatio);
+                        ImGui::Text("Drawn Meshlets: %s", numberToWord(feedbackInfo.meshletsDrawn).c_str());
+                        ImGui::Text("Culled Meshlets: %s", numberToWord(feedbackInfo.meshletsTotal - feedbackInfo.meshletsDrawn).c_str());
+                        f32 culledMeshletRatio = (static_cast<f32>(feedbackInfo.meshletsTotal - feedbackInfo.meshletsDrawn) / (static_cast<f32>(feedbackInfo.meshletsDrawn) + static_cast<f32>(feedbackInfo.meshletsTotal - feedbackInfo.meshletsDrawn))) * 100;
+                        if (feedbackInfo.meshletsDrawn + feedbackInfo.meshletsTotal - feedbackInfo.meshletsDrawn == 0)
+                            culledMeshletRatio = 0;
+                        ImGui::Text("Culled meshlet ratio: %.0f%%", culledMeshletRatio);
+                        ImGui::Text("Drawn Triangles %s", numberToWord(feedbackInfo.trianglesDrawn).c_str());
+                    }
+                    ImGui::TreePop();
                 }
 
                 if (ImGui::TreeNode("Resource Stats")) {
@@ -571,6 +636,10 @@ int main(int argc, char* argv[]) {
             .format = canta::Format::D32_SFLOAT,
             .name = "depth_image"
         });
+        auto feedbackIndex = renderGraph.addBuffer({
+            .handle = feedbackBuffers[engine.device()->flyingIndex()],
+            .name = "feedback_bufer"
+        });
 
         auto& cullMeshPass = renderGraph.addPass("cull_meshes", canta::RenderPass::Type::COMPUTE);
         cullMeshPass.addStorageBufferRead(meshBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
@@ -578,6 +647,7 @@ int main(int argc, char* argv[]) {
         cullMeshPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshPass.addStorageBufferWrite(meshletInstanceBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+        cullMeshPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto transformsBuffer = graph.getBuffer(transformsIndex);
             auto meshBuffer = graph.getBuffer(meshBufferIndex);
@@ -595,7 +665,7 @@ int main(int argc, char* argv[]) {
                 u32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
-                .globalDataRef = globalBuffer->address(),
+                .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
                     .meshBuffer = meshBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                     .transformsBuffer = transformsBuffer->address(),
@@ -631,6 +701,7 @@ int main(int argc, char* argv[]) {
         cullMeshletsPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshletsPass.addStorageBufferRead(meshletInstanceBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshletsPass.addStorageBufferWrite(meshletInstanceBuffer2Index, canta::PipelineStage::COMPUTE_SHADER);
+        cullMeshletsPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshletsPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto meshCommandBuffer = graph.getBuffer(meshCommandAlias);
             auto transformsBuffer = graph.getBuffer(transformsIndex);
@@ -649,7 +720,7 @@ int main(int argc, char* argv[]) {
                 u64 cameraBuffer;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
-                .globalDataRef = globalBuffer->address(),
+                .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
                 .meshletBuffer = meshletBuffer->address(),
                 .meshletInstanceInputBuffer = meshletInstanceInputBuffer->address(),
                 .meshletInstanceOutputBuffer = meshletInstanceOutputBuffer->address(),
@@ -687,6 +758,7 @@ int main(int argc, char* argv[]) {
             geometryPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::MESH_SHADER);
             geometryPass.addStorageBufferRead(meshletInstanceBuffer2Index, canta::PipelineStage::MESH_SHADER);
             geometryPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::MESH_SHADER);
+            geometryPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::MESH_SHADER);
             geometryPass.addColourWrite(swapchainIndex);
             geometryPass.addDepthWrite(depthIndex);
             geometryPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
@@ -725,7 +797,7 @@ int main(int argc, char* argv[]) {
                     u64 cameraBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::MESH, Push {
-                    .globalDataRef = globalBuffer->address(),
+                    .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
                         .meshletBuffer = meshletBuffer->address(),
                         .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                         .vertexBuffer = vertexBuffer->address(),
@@ -772,7 +844,7 @@ int main(int argc, char* argv[]) {
                     u64 drawCommandsBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
-                    .globalDataRef = globalBuffer->address(),
+                    .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
                         .meshletBuffer = meshletBuffer->address(),
                         .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                         .primitiveBuffer = primitiveBuffer->address(),
@@ -816,7 +888,7 @@ int main(int argc, char* argv[]) {
                     u64 cameraBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::VERTEX, Push {
-                    .globalDataRef = globalBuffer->address(),
+                    .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
                     .meshletBuffer = meshletBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                     .vertexBuffer = vertexBuffer->address(),

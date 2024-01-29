@@ -45,8 +45,10 @@ void main() {
         Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
         vec3 center = (transformsBuffer.transforms[instance.meshId] * vec4(meshlet.center, 1.0)).xyz;
         visible = frustumCheck(center, meshlet.radius);
+        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshletsTotal, 1);
         if (visible) {
             uint index = atomicAdd(meshletInstanceOutputBuffer.count, 1);
+            atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshletsDrawn, 1);
             meshletInstanceOutputBuffer.instances[index] = instance;
         }
     }

@@ -43,6 +43,10 @@ void main() {
 
     SetMeshOutputsEXT(meshlet.indexCount, meshlet.primitiveCount);
 
+    if (threadIndex == 0) {
+        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.trianglesDrawn, meshlet.primitiveCount);
+    }
+
     if (threadIndex < meshlet.indexCount) {
         uint index = indexBuffer.indices[meshlet.indexOffset + threadIndex] + meshlet.vertexOffset;
         Vertex vertex = vertexBuffer.vertices[index];

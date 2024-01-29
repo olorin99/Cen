@@ -120,9 +120,25 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer Ca
 };
 #endif
 
+struct FeedbackInfo {
+    uint meshesDrawn;
+    uint meshesTotal;
+    uint meshletsDrawn;
+    uint meshletsTotal;
+    uint trianglesDrawn;
+};
+#ifndef __cplusplus
+layout (scalar, buffer_reference, buffer_reference_align = 4) buffer FeedbackInfoRef {
+    FeedbackInfo info;
+};
+#else
+#define FeedbackInfoRef u64
+#endif
+
 struct GlobalData {
     uint maxMeshCount;
     uint maxMeshletCount;
+    FeedbackInfoRef feedbackInfoRef;
 };
 #ifndef __cplusplus
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer GlobalDataRef {
