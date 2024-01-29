@@ -341,37 +341,27 @@ int main(int argc, char* argv[]) {
 
         {
             auto cameraPosition = camera.position();
-            auto cameraRotation = camera.rotation();
+            auto cameraRotation = camera.rotation().unit();
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_W])
                 camera.setPosition(cameraPosition + camera.rotation().front() * dt * 10);
-//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().front() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_S])
                 camera.setPosition(cameraPosition + camera.rotation().back() * dt * 10);
-//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().back() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_A])
                 camera.setPosition(cameraPosition + camera.rotation().left() * dt * 10);
-//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().left() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_D])
                 camera.setPosition(cameraPosition + camera.rotation().right() * dt * 10);
-//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().right() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_LSHIFT])
                 camera.setPosition(cameraPosition + camera.rotation().down() * dt * 10);
-//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().down() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_SPACE])
                 camera.setPosition(cameraPosition + camera.rotation().up() * dt * 10);
-//                scene.getMainCamera()->transform().addPos(scene.getMainCamera()->transform().rot().invertY().up() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_LEFT])
-                camera.setRotation(cameraRotation * ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(-90) * dt * 10));
-//                scene.getMainCamera()->transform().rotate({0, 1, 0}, ende::math::rad(-90) * dt);
+                camera.setRotation(ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(90) * dt) * cameraRotation);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_RIGHT])
-                camera.setRotation(cameraRotation * ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(90) * dt * 10));
-//                scene.getMainCamera()->transform().rotate({0, 1, 0}, ende::math::rad(90) * dt);
+                camera.setRotation(ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(-90) * dt) * cameraRotation);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_UP])
-                camera.setRotation(cameraRotation * ende::math::Quaternion(cameraRotation.right(), ende::math::rad(45) * dt * 10));
-//                scene.getMainCamera()->transform().rotate(scene.getMainCamera()->transform().rot().right(), ende::math::rad(45) * dt);
+                camera.setRotation(ende::math::Quaternion(cameraRotation.right(), ende::math::rad(-45) * dt) * cameraRotation);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_DOWN])
-                camera.setRotation(cameraRotation * ende::math::Quaternion(cameraRotation.right(), ende::math::rad(-45) * dt * 10));
-//                scene.getMainCamera()->transform().rotate(scene.getMainCamera()->transform().rot().right(), ende::math::rad(-45) * dt);
+                camera.setRotation(ende::math::Quaternion(cameraRotation.right(), ende::math::rad(45) * dt) * cameraRotation);
         }
 
 
@@ -819,6 +809,7 @@ int main(int argc, char* argv[]) {
             imguiContext.render(ImGui::GetDrawData(), cmd, swapchain->format());
         });
 
+//        renderGraph.setBackbuffer(swapchainIndex);
         renderGraph.setBackbuffer(uiSwapchainIndex);
         renderGraph.compile();
 

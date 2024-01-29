@@ -29,7 +29,7 @@ auto cen::Camera::create(cen::Camera::CreateOrthographicInfo info) -> Camera {
 
 auto cen::Camera::view() const -> ende::math::Mat4f {
     auto translation = ende::math::translation<4, f32>(_position);
-    auto rotation = _rotation.conjugate().unit().toMat();
+    auto rotation = _rotation.inverse().toMat();
     return rotation * translation;
 }
 

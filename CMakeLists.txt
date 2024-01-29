@@ -3,6 +3,9 @@ project(Cen)
 
 set(CMAKE_CXX_STANDARD 23)
 
+#add_compile_options(-fsanitize=address)
+#add_link_options(-fsanitize=address)
+
 add_compile_definitions(CEN_SRC_DIR="${CMAKE_SOURCE_DIR}")
 
 add_library(Cen
