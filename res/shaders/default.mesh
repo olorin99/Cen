@@ -15,6 +15,7 @@ layout (location = 0) out VsOut {
 } meshOut[];
 
 layout (push_constant) uniform Push {
+    GlobalDataRef globalDataRef;
     MeshletBuffer meshletBuffer;
     MeshletInstanceBuffer meshletInstanceBuffer;
     VertexBuffer vertexBuffer;
@@ -32,7 +33,12 @@ void main() {
 
     GPUCamera camera = cameraBuffer.camera;
 
-    MeshletInstance instance = meshletInstanceBuffer.instances[gl_WorkGroupID.x];
+    uint meshletIndex = gl_WorkGroupID.x + gl_NumWorkGroups.x * gl_WorkGroupID.y;
+    if (meshletIndex >= meshletInstanceBuffer.count) {
+        SetMeshOutputsEXT(0, 0);
+        return;
+    }
+    MeshletInstance instance = meshletInstanceBuffer.instances[meshletIndex];
     Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
 
     SetMeshOutputsEXT(meshlet.indexCount, meshlet.primitiveCount);

@@ -14,6 +14,7 @@ layout (location = 0) out VsOut {
 } vertexOut;
 
 layout (push_constant) uniform Push {
+    GlobalDataRef globalDataRef;
     MeshletBuffer meshletBuffer;
     MeshletInstanceBuffer meshletInstanceBuffer;
     VertexBuffer vertexBuffer;

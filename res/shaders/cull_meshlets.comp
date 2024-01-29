@@ -9,6 +9,7 @@
 #include "shaders/cen.glsl"
 
 layout (push_constant) uniform Push {
+    GlobalDataRef globalDataRef;
     MeshletBuffer meshletBuffer;
     MeshletInstanceBuffer meshletInstanceInputBuffer;
     MeshletInstanceBuffer meshletInstanceOutputBuffer;
@@ -31,6 +32,8 @@ layout (local_size_x = 64) in;
 void main() {
 
     uint threadIndex = gl_GlobalInvocationID.x;
+    if (threadIndex >= globalDataRef.globalData.maxMeshletCount)
+        return;
     if (threadIndex == 0) {
         meshletInstanceOutputBuffer.count = 0;
     }

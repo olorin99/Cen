@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
         .applicationName = "CenMain",
         .window = &window,
         .assetPath = std::filesystem::path(CEN_SRC_DIR) / "res",
-        .meshShadingEnabled = false
+        .meshShadingEnabled = true
     });
     auto swapchain = engine.device()->createSwapchain({
         .window = &window
@@ -77,11 +77,7 @@ int main(int argc, char* argv[]) {
     std::vector<Meshlet> meshlets = {};
     std::vector<u8> primitives = {};
 
-    struct Mesh {
-        u32 meshletOffset = 0;
-        u32 meshletCount = 0;
-    };
-    std::vector<Mesh> meshes = {};
+    std::vector<GPUMesh> meshes = {};
 
     struct NodeInfo {
         u32 assetIndex = 0;
@@ -99,6 +95,17 @@ int main(int argc, char* argv[]) {
 
         auto& assetNode = asset->nodes[assetIndex];
 
+        ende::math::Mat4f transform = ende::math::identity<4, f32>();
+        if (auto trs = std::get_if<fastgltf::TRS>(&assetNode.transform); trs) {
+            ende::math::Quaternion rotation(trs->rotation[0], trs->rotation[1], trs->rotation[2], trs->rotation[3]);
+            ende::math::Vec3f scale{ trs->scale[0], trs->scale[1], trs->scale[2] };
+            ende::math::Vec3f translation{ trs->translation[0], trs->translation[1], trs->translation[2] };
+
+            transform = ende::math::translation<4, f32>(translation) * rotation.toMat() * ende::math::scale<4, f32>(scale);
+        } else if (auto* mat = std::get_if<fastgltf::Node::TransformMatrix>(&assetNode.transform); mat) {
+            transform = ende::math::Mat4f(*mat);
+        }
+
         for (u32 child : assetNode.children) {
             nodeInfos.push({
                 .assetIndex = child
@@ -110,6 +117,9 @@ int main(int argc, char* argv[]) {
         u32 meshIndex = assetNode.meshIndex.value();
         auto& assetMesh = asset->meshes[meshIndex];
         for (auto& primitive : assetMesh.primitives) {
+            ende::math::Vec4f min = { std::numeric_limits<f32>::max(), std::numeric_limits<f32>::max(), std::numeric_limits<f32>::max() };
+            ende::math::Vec4f max = { std::numeric_limits<f32>::lowest(), std::numeric_limits<f32>::lowest(), std::numeric_limits<f32>::lowest() };
+
             u32 firstVertex = vertices.size();
             u32 firstIndex = indices.size();
             u32 firstMeshlet = meshlets.size();
@@ -128,7 +138,11 @@ int main(int argc, char* argv[]) {
                 auto& positionsAccessor = asset->accessors[positionsIt->second];
                 meshVertices.resize(positionsAccessor.count);
                 fastgltf::iterateAccessorWithIndex<ende::math::Vec3f>(asset.get(), positionsAccessor, [&](ende::math::Vec3f position, u32 idx) {
+                    position = transform.transform(position);
                     meshVertices[idx].position = position;
+
+                    min = { std::min(min.x(), position.x()), std::min(min.y(), position.y()), std::min(min.z(), position.z()), 1 };
+                    max = { std::max(max.x(), position.x()), std::max(max.y(), position.y()), std::max(max.z(), position.z()), 1 };
                 });
             }
 
@@ -187,24 +201,31 @@ int main(int argc, char* argv[]) {
             primitives.insert(primitives.end(), meshletPrimitives.begin(), meshletPrimitives.end());
             meshlets.insert(meshlets.end(), meshMeshlets.begin(), meshMeshlets.end());
 
-            meshes.push_back({
+            meshes.push_back(GPUMesh{
                 .meshletOffset = firstMeshlet,
-                .meshletCount = static_cast<u32>(meshMeshlets.size())
+                .meshletCount = static_cast<u32>(meshMeshlets.size()),
+                .min = min,
+                .max = max
             });
         }
     }
 
+    f32 scale = 4;
     for (u32 i = 0; i < 30; i++) {
         for (u32 j = 0; j < 30; j++) {
-            scene.addMesh({
-                .meshletOffset = 0,
-                .meshletCount = static_cast<u32>(meshlets.size()),
-                .min = { -1, -1, -1 },
-                .max = { 1, 1, 1 },
-            }, ende::math::translation<4, f32>({ static_cast<f32>(i * 2), static_cast<f32>(j * 2), 0 }));
+            for (u32 k = 0; k < 1; k++) {
+                for (auto& mesh : meshes) {
+                    scene.addMesh(mesh, ende::math::translation<4, f32>({ static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }));
+                }
+            }
         }
     }
 
+    auto globalBuffer = engine.device()->createBuffer({
+        .size = sizeof(GlobalData),
+        .usage = canta::BufferUsage::STORAGE,
+        .name = "global_data_buffer"
+    });
     auto vertexBuffer = engine.device()->createBuffer({
         .size = static_cast<u32>(vertices.size() * sizeof(Vertex)),
         .usage = canta::BufferUsage::STORAGE,
@@ -221,7 +242,7 @@ int main(int argc, char* argv[]) {
         .name = "primitive_buffer"
     });
     auto meshletBuffer = engine.device()->createBuffer({
-        .size = static_cast<u32>(scene.maxMeshlets() * sizeof(Meshlet)),
+        .size = static_cast<u32>(meshlets.size() * sizeof(Meshlet)),
         .usage = canta::BufferUsage::STORAGE,
         .name = "meshlet_buffer"
     });
@@ -246,6 +267,13 @@ int main(int argc, char* argv[]) {
         });
     }
 
+    GlobalData globalData = {
+            .maxMeshCount = scene.meshCount(),
+//            .maxMeshletCount = scene.meshCount() * scene.maxMeshlets()
+            .maxMeshletCount = 4000000000
+    };
+
+    uploadBuffer.upload(globalBuffer, globalData);
     uploadBuffer.upload(vertexBuffer, vertices);
     uploadBuffer.upload(indexBuffer, indices);
     uploadBuffer.upload(primitiveBuffer, primitives);
@@ -518,11 +546,11 @@ int main(int argc, char* argv[]) {
             .name = "meshlet_buffer"
         });
         auto meshletInstanceBufferIndex = renderGraph.addBuffer({
-            .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * scene.meshCount() * scene.maxMeshlets()),
+            .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * globalData.maxMeshletCount),
             .name = "meshlet_instance_buffer"
         });
         auto meshletInstanceBuffer2Index = renderGraph.addBuffer({
-            .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * scene.meshCount() * scene.maxMeshlets()),
+            .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * globalData.maxMeshletCount),
             .name = "meshlet_instance_2_buffer"
         });
         auto meshletCommandBufferIndex = renderGraph.addBuffer({
@@ -558,6 +586,7 @@ int main(int argc, char* argv[]) {
 
             cmd.bindPipeline(cullMeshPipeline);
             struct Push {
+                u64 globalDataRef;
                 u64 meshBuffer;
                 u64 meshletInstanceBuffer;
                 u64 transformsBuffer;
@@ -566,6 +595,7 @@ int main(int argc, char* argv[]) {
                 u32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                .globalDataRef = globalBuffer->address(),
                     .meshBuffer = meshBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                     .transformsBuffer = transformsBuffer->address(),
@@ -611,6 +641,7 @@ int main(int argc, char* argv[]) {
 
             cmd.bindPipeline(cullMeshletPipeline);
             struct Push {
+                u64 globalDataRef;
                 u64 meshletBuffer;
                 u64 meshletInstanceInputBuffer;
                 u64 meshletInstanceOutputBuffer;
@@ -618,6 +649,7 @@ int main(int argc, char* argv[]) {
                 u64 cameraBuffer;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                .globalDataRef = globalBuffer->address(),
                 .meshletBuffer = meshletBuffer->address(),
                 .meshletInstanceInputBuffer = meshletInstanceInputBuffer->address(),
                 .meshletInstanceOutputBuffer = meshletInstanceOutputBuffer->address(),
@@ -683,6 +715,7 @@ int main(int argc, char* argv[]) {
                 }));
                 cmd.setViewport({ 1920, 1080 });
                 struct Push {
+                    u64 globalDataRef;
                     u64 meshletBuffer;
                     u64 meshletInstanceBuffer;
                     u64 vertexBuffer;
@@ -692,6 +725,7 @@ int main(int argc, char* argv[]) {
                     u64 cameraBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::MESH, Push {
+                    .globalDataRef = globalBuffer->address(),
                         .meshletBuffer = meshletBuffer->address(),
                         .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                         .vertexBuffer = vertexBuffer->address(),
@@ -730,6 +764,7 @@ int main(int argc, char* argv[]) {
 
                 cmd.bindPipeline(outputIndicesPipeline);
                 struct Push {
+                    u64 globalDataRef;
                     u64 meshletBuffer;
                     u64 meshletInstanceBuffer;
                     u64 primitiveBuffer;
@@ -737,6 +772,7 @@ int main(int argc, char* argv[]) {
                     u64 drawCommandsBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                    .globalDataRef = globalBuffer->address(),
                         .meshletBuffer = meshletBuffer->address(),
                         .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                         .primitiveBuffer = primitiveBuffer->address(),
@@ -770,6 +806,7 @@ int main(int argc, char* argv[]) {
                 cmd.bindPipeline(vertexPipeline);
                 cmd.setViewport({ 1920, 1080 });
                 struct Push {
+                    u64 globalDataRef;
                     u64 meshletBuffer;
                     u64 meshletInstanceBuffer;
                     u64 vertexBuffer;
@@ -779,6 +816,7 @@ int main(int argc, char* argv[]) {
                     u64 cameraBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::VERTEX, Push {
+                    .globalDataRef = globalBuffer->address(),
                     .meshletBuffer = meshletBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                     .vertexBuffer = vertexBuffer->address(),

@@ -18,8 +18,10 @@ void main() {
 
     uint meshletCount = meshletInstanceBuffer.count;
     DispatchIndirectCommand command;
-    command.x = meshletCount;
-    command.y = 1;
+    uint x = max(1, uint(ceil(sqrt(float(meshletCount)))));
+    uint y = x;
+    command.x = x;
+    command.y = y;
     command.z = 1;
     commandBuffer.command = command;
 

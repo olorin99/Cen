@@ -120,6 +120,16 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer Ca
 };
 #endif
 
+struct GlobalData {
+    uint maxMeshCount;
+    uint maxMeshletCount;
+};
+#ifndef __cplusplus
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer GlobalDataRef {
+    GlobalData globalData;
+};
+#endif
+
 #define MESHLET_ID_BITS 26
 #define PRIMITIVE_ID_BITS 6
 #define MESHLET_MASK ((1u << MESHLET_ID_BITS) - 1u)
