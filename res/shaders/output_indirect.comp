@@ -49,6 +49,7 @@ void main() {
     Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
 
     if (gl_LocalInvocationIndex == 0) {
+        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.trianglesDrawn, meshlet.primitiveCount);
         sharedIndexOffset = atomicAdd(meshletIndexBuffer.indexCount, meshlet.primitiveCount * 3);
         uint drawIndex = atomicAdd(drawCommandBuffer.drawCount, 1);
         DrawIndirectCommand drawCommand;
@@ -66,10 +67,9 @@ void main() {
         uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 2];
 
         uint indexOffset = sharedIndexOffset + threadIndex * 3;
-        uint meshletId = gl_WorkGroupID.x;
-        meshletIndexBuffer.indices[indexOffset + 0] = setMeshletID(meshletId) | setPrimitiveID(a);
-        meshletIndexBuffer.indices[indexOffset + 1] = setMeshletID(meshletId) | setPrimitiveID(b);
-        meshletIndexBuffer.indices[indexOffset + 2] = setMeshletID(meshletId) | setPrimitiveID(c);
+        meshletIndexBuffer.indices[indexOffset + 0] = setMeshletID(meshletIndex) | setPrimitiveID(a);
+        meshletIndexBuffer.indices[indexOffset + 1] = setMeshletID(meshletIndex) | setPrimitiveID(b);
+        meshletIndexBuffer.indices[indexOffset + 2] = setMeshletID(meshletIndex) | setPrimitiveID(c);
     }
 
 }

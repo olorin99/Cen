@@ -826,6 +826,7 @@ int main(int argc, char* argv[]) {
             outputIndexBufferPass.addStorageBufferRead(meshletInstanceBuffer2Index, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(outputIndicesIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(drawCommandsIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
                 auto meshletCommandBuffer = graph.getBuffer(meshletCommandBufferIndex);
                 auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
@@ -845,11 +846,11 @@ int main(int argc, char* argv[]) {
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                     .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
-                        .meshletBuffer = meshletBuffer->address(),
-                        .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                        .primitiveBuffer = primitiveBuffer->address(),
-                        .outputIndexBuffer = outputIndexBuffer->address(),
-                        .drawCommandsBuffer = drawCommandsBuffer->address()
+                    .meshletBuffer = meshletBuffer->address(),
+                    .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                    .primitiveBuffer = primitiveBuffer->address(),
+                    .outputIndexBuffer = outputIndexBuffer->address(),
+                    .drawCommandsBuffer = drawCommandsBuffer->address()
                 });
                 cmd.dispatchIndirect(meshletCommandBuffer, 0);
             });

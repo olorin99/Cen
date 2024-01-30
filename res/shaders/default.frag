@@ -24,4 +24,6 @@ vec3 hue2rgb(float hue) {
 
 void main() {
     OutColour = vec4(hue2rgb(fsIn.meshletId * 1.71f), 1);
+//    OutColour = vec4(hue2rgb(fsIn.drawId * 1.71f), 1);
+//    OutColour = vec4(hue2rgb(gl_PrimitiveID * 1.71f), 1);
 }
