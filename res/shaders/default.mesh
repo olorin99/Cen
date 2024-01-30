@@ -9,6 +9,13 @@
 
 #include "shaders/cen.glsl"
 
+#ifndef WORKGROUP_SIZE_X
+#define WORKGROUP_SIZE_X 64
+#endif
+
+#define MAX_VERTICES_PER_THREAD ((MAX_MESHLET_VERTICES + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X)
+#define MAX_PRIMITIVES_PER_THREAD ((MAX_MESHLET_PRIMTIVES + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X)
+
 layout (location = 0) out VsOut {
     flat uint drawId;
     flat uint meshletId;
@@ -25,8 +32,8 @@ layout (push_constant) uniform Push {
     CameraBuffer cameraBuffer;
 };
 
-layout (local_size_x = 64) in;
-layout (triangles, max_vertices = 64, max_primitives = 64) out;
+layout (local_size_x = WORKGROUP_SIZE_X) in;
+layout (triangles, max_vertices = MAX_MESHLET_VERTICES, max_primitives = MAX_MESHLET_PRIMTIVES) out;
 void main() {
 
     uint threadIndex = gl_LocalInvocationIndex;
@@ -47,8 +54,9 @@ void main() {
         atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.trianglesDrawn, meshlet.primitiveCount);
     }
 
-    if (threadIndex < meshlet.indexCount) {
-        uint index = indexBuffer.indices[meshlet.indexOffset + threadIndex] + meshlet.vertexOffset;
+    for (uint i = 0; i < MAX_VERTICES_PER_THREAD; i++) {
+        const uint id = min(threadIndex + i * WORKGROUP_SIZE_X, meshlet.indexCount - 1);
+        uint index = indexBuffer.indices[meshlet.indexOffset + id] + meshlet.vertexOffset;
         Vertex vertex = vertexBuffer.vertices[index];
         vec4 fragPos = transformsBuffer.transforms[instance.meshId] * vec4(vertex.position, 1.0);
 
@@ -58,12 +66,13 @@ void main() {
         gl_MeshVerticesEXT[threadIndex].gl_Position = camera.projection * camera.view * fragPos;
     }
 
-    if (threadIndex < meshlet.primitiveCount) {
-        uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 0];
-        uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 1];
-        uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 2];
+    for (uint i = 0; i < MAX_PRIMITIVES_PER_THREAD; i++) {
+        uint id = min(threadIndex + i * WORKGROUP_SIZE_X, meshlet.primitiveCount - 1);
+        uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 0];
+        uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 1];
+        uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 2];
 
-        gl_PrimitiveTriangleIndicesEXT[threadIndex] = uvec3(a, b, c);
-        gl_MeshPrimitivesEXT[threadIndex].gl_PrimitiveID = int(threadIndex);
+        gl_PrimitiveTriangleIndicesEXT[id] = uvec3(a, b, c);
+        gl_MeshPrimitivesEXT[id].gl_PrimitiveID = int(id);
     }
 }

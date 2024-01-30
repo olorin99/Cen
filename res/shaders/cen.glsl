@@ -146,8 +146,8 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer Gl
 };
 #endif
 
-#define MESHLET_ID_BITS 26
-#define PRIMITIVE_ID_BITS 6
+#define MESHLET_ID_BITS 24
+#define PRIMITIVE_ID_BITS 8
 #define MESHLET_MASK ((1u << MESHLET_ID_BITS) - 1u)
 #define PRIMITIVE_MASK ((1u << PRIMITIVE_ID_BITS) - 1u)
 

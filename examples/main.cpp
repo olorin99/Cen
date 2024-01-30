@@ -15,6 +15,9 @@
 
 #include <cen.glsl>
 
+constexpr const u32 MAX_MESHLET_VERTICES = 64;
+constexpr const u32 MAX_MESHLET_PRIMTIVES = 128;
+
 template <>
 struct fastgltf::ElementTraits<ende::math::Vec3f> : fastgltf::ElementTraitsBase<ende::math::Vec3f, AccessorType::Vec3, float> {};
 template <>
@@ -173,16 +176,14 @@ int main(int argc, char* argv[]) {
                 });
             }
 
-            const u32 maxVertices = 64;
-            const u32 maxTriangles = 64;
             const u32 coneWeight = 0.f;
 
-            u32 maxMeshlets = meshopt_buildMeshletsBound(meshIndices.size(), maxVertices, maxTriangles);
+            u32 maxMeshlets = meshopt_buildMeshletsBound(meshIndices.size(), MAX_MESHLET_VERTICES, MAX_MESHLET_PRIMTIVES);
             std::vector<meshopt_Meshlet> meshoptMeshlets(maxMeshlets);
-            std::vector<u32> meshletIndices(maxMeshlets * maxVertices);
-            std::vector<u8> meshletPrimitives(maxMeshlets * maxTriangles * 3);
+            std::vector<u32> meshletIndices(maxMeshlets * MAX_MESHLET_VERTICES);
+            std::vector<u8> meshletPrimitives(maxMeshlets * MAX_MESHLET_PRIMTIVES * 3);
 
-            u32 meshletCount = meshopt_buildMeshlets(meshoptMeshlets.data(), meshletIndices.data(), meshletPrimitives.data(), meshIndices.data(), meshIndices.size(), (f32*)meshVertices.data(), meshVertices.size(), sizeof(Vertex), maxVertices, maxTriangles, coneWeight);
+            u32 meshletCount = meshopt_buildMeshlets(meshoptMeshlets.data(), meshletIndices.data(), meshletPrimitives.data(), meshIndices.data(), meshIndices.size(), (f32*)meshVertices.data(), meshVertices.size(), sizeof(Vertex), MAX_MESHLET_VERTICES, MAX_MESHLET_PRIMTIVES, coneWeight);
 
             auto& lastMeshlet = meshoptMeshlets[meshletCount - 1];
             meshletIndices.resize(lastMeshlet.vertex_offset + lastMeshlet.vertex_count);
@@ -334,6 +335,11 @@ int main(int argc, char* argv[]) {
 
     auto meshShader = engine.pipelineManager().getShader({
         .path = "shaders/default.mesh",
+        .macros = std::to_array({
+            canta::Macro{ "WORKGROUP_SIZE_X", std::to_string(64) },
+            canta::Macro{ "MAX_MESHLET_VERTICES", std::to_string(MAX_MESHLET_VERTICES) },
+            canta::Macro{ "MAX_MESHLET_PRIMTIVES", std::to_string(MAX_MESHLET_PRIMTIVES) }
+        }),
         .stage = canta::ShaderStage::MESH
     });
     auto fragmentShader = engine.pipelineManager().getShader({
@@ -343,6 +349,11 @@ int main(int argc, char* argv[]) {
 
     auto outputIndicesShader = engine.pipelineManager().getShader({
         .path = "shaders/output_indirect.comp",
+        .macros = std::to_array({
+            canta::Macro{ "WORKGROUP_SIZE_X", std::to_string(64) },
+            canta::Macro{ "MAX_MESHLET_VERTICES", std::to_string(MAX_MESHLET_VERTICES) },
+            canta::Macro{ "MAX_MESHLET_PRIMTIVES", std::to_string(MAX_MESHLET_PRIMTIVES) }
+        }),
         .stage = canta::ShaderStage::COMPUTE
     });
     auto outputIndicesPipeline = engine.pipelineManager().getPipeline({
@@ -811,7 +822,7 @@ int main(int argc, char* argv[]) {
             });
         } else {
             auto outputIndicesIndex = renderGraph.addBuffer({
-                .size = static_cast<u32>(scene.maxMeshlets() * scene.meshCount() * 64 * 3 * sizeof(u32)),
+                .size = static_cast<u32>(scene.maxMeshlets() * scene.meshCount() * MAX_MESHLET_PRIMTIVES * 3 * sizeof(u32)),
                 .name = "output_indices_buffer"
             });
             auto drawCommandsIndex = renderGraph.addBuffer({

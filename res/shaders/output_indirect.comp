@@ -8,6 +8,13 @@
 
 #include "shaders/cen.glsl"
 
+#ifndef WORKGROUP_SIZE_X
+#define WORKGROUP_SIZE_X 64
+#endif
+
+#define MAX_VERTICES_PER_THREAD ((MAX_MESHLET_VERTICES + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X)
+#define MAX_PRIMITIVES_PER_THREAD ((MAX_MESHLET_PRIMTIVES + WORKGROUP_SIZE_X - 1) / WORKGROUP_SIZE_X)
+
 struct DrawIndirectCommand {
     uint vertexCount;
     uint instanceCount;
@@ -30,7 +37,7 @@ layout (push_constant) uniform Push {
 
 shared uint sharedIndexOffset;
 
-layout (local_size_x = 64) in;
+layout (local_size_x = WORKGROUP_SIZE_X) in;
 void main() {
 
     if (gl_GlobalInvocationID.x == 0) {
@@ -61,12 +68,14 @@ void main() {
     }
     barrier();
 
-    if (threadIndex < meshlet.primitiveCount) {
-        uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 0];
-        uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 1];
-        uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + threadIndex * 3 + 2];
+    for (uint i = 0; i < MAX_PRIMITIVES_PER_THREAD; i++) {
+        uint id = min(threadIndex + i * WORKGROUP_SIZE_X, meshlet.primitiveCount - 1);
 
-        uint indexOffset = sharedIndexOffset + threadIndex * 3;
+        uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 0];
+        uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 1];
+        uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 2];
+
+        uint indexOffset = sharedIndexOffset + id * 3;
         meshletIndexBuffer.indices[indexOffset + 0] = setMeshletID(meshletIndex) | setPrimitiveID(a);
         meshletIndexBuffer.indices[indexOffset + 1] = setMeshletID(meshletIndex) | setPrimitiveID(b);
         meshletIndexBuffer.indices[indexOffset + 2] = setMeshletID(meshletIndex) | setPrimitiveID(c);
