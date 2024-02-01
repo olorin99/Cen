@@ -298,7 +298,8 @@ int main(int argc, char* argv[]) {
     GlobalData globalData = {
             .maxMeshCount = scene.meshCount(),
             .maxMeshletCount = 10000000,
-            .maxIndirectIndexCount = 10000000 * 3
+            .maxIndirectIndexCount = 10000000 * 3,
+            .screenSize = { 1920, 1080 }
     };
 
     uploadBuffer.upload(vertexBuffer, vertices);
@@ -851,6 +852,9 @@ int main(int argc, char* argv[]) {
             outputIndexBufferPass.addStorageBufferRead(drawCommandsAlias, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(drawCommandsIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(vertexBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(indexBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
                 auto meshletCommandBuffer = graph.getBuffer(meshletCommandBufferIndex);
                 auto meshletBuffer = graph.getBuffer(meshletBufferIndex);
@@ -858,23 +862,35 @@ int main(int argc, char* argv[]) {
                 auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
                 auto outputIndexBuffer = graph.getBuffer(outputIndicesIndex);
                 auto drawCommandsBuffer = graph.getBuffer(drawCommandsIndex);
+                auto cameraBuffer = graph.getBuffer(cameraBufferIndex);
+                auto transformsBuffer = graph.getBuffer(transformsIndex);
+                auto vertexBuffer = graph.getBuffer(vertexBufferIndex);
+                auto indexBuffer = graph.getBuffer(indexBufferIndex);
 
                 cmd.bindPipeline(outputIndicesPipeline);
                 struct Push {
                     u64 globalDataRef;
                     u64 meshletBuffer;
                     u64 meshletInstanceBuffer;
+                    u64 vertexBuffer;
+                    u64 indexBuffer;
                     u64 primitiveBuffer;
                     u64 outputIndexBuffer;
                     u64 drawCommandsBuffer;
+                    u64 transformBuffer;
+                    u64 cameraBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                     .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
                     .meshletBuffer = meshletBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                    .vertexBuffer = vertexBuffer->address(),
+                    .indexBuffer = indexBuffer->address(),
                     .primitiveBuffer = primitiveBuffer->address(),
                     .outputIndexBuffer = outputIndexBuffer->address(),
-                    .drawCommandsBuffer = drawCommandsBuffer->address()
+                    .drawCommandsBuffer = drawCommandsBuffer->address(),
+                    .transformBuffer = transformsBuffer->address(),
+                    .cameraBuffer = cameraBuffer->address()
                 });
                 cmd.dispatchIndirect(meshletCommandBuffer, 0);
             });

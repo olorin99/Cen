@@ -30,12 +30,19 @@ layout (push_constant) uniform Push {
     GlobalDataRef globalDataRef;
     MeshletBuffer meshletBuffer;
     MeshletInstanceBuffer meshletInstanceBuffer;
+    VertexBuffer vertexBuffer;
+    IndexBuffer indexBuffer;
     PrimitiveBuffer primitiveBuffer;
     MeshletIndexBuffer meshletIndexBuffer;
     DrawCommandBuffer drawCommandBuffer;
+    TransformsBuffer transformsBuffer;
+    CameraBuffer cameraBuffer;
 };
 
 shared uint sharedIndexOffset;
+shared uint sharedPrimitivesPassed;
+shared uint sharedPrimitiveId;
+shared bool sharedCulled[MAX_MESHLET_PRIMTIVES];
 
 layout (local_size_x = WORKGROUP_SIZE_X) in;
 void main() {
@@ -43,6 +50,8 @@ void main() {
     uint threadIndex = gl_LocalInvocationIndex;
     if (threadIndex == 0) {
         sharedIndexOffset = 0;
+        sharedPrimitivesPassed = 0;
+        sharedPrimitiveId = 0;
     }
     barrier();
 
@@ -51,11 +60,66 @@ void main() {
         return;
     }
 
+    GPUCamera camera = cameraBuffer.camera;
     MeshletInstance instance = meshletInstanceBuffer.instances[meshletIndex];
     Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
 
+    for (uint i = 0; i < MAX_PRIMITIVES_PER_THREAD; i++) {
+        uint id = min(threadIndex + i * WORKGROUP_SIZE_X, meshlet.primitiveCount - 1);
+
+        uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 0];
+        uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 1];
+        uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 2];
+
+        uint indexA = indexBuffer.indices[meshlet.indexOffset + a] + meshlet.vertexOffset;
+        uint indexB = indexBuffer.indices[meshlet.indexOffset + b] + meshlet.vertexOffset;
+        uint indexC = indexBuffer.indices[meshlet.indexOffset + c] + meshlet.vertexOffset;
+
+        Vertex vertexA = vertexBuffer.vertices[indexA];
+        Vertex vertexB = vertexBuffer.vertices[indexB];
+        Vertex vertexC = vertexBuffer.vertices[indexC];
+
+        vec4 fragPosA = transformsBuffer.transforms[instance.meshId] * vec4(vertexA.position, 1.0);
+        vec4 fragPosB = transformsBuffer.transforms[instance.meshId] * vec4(vertexB.position, 1.0);
+        vec4 fragPosC = transformsBuffer.transforms[instance.meshId] * vec4(vertexC.position, 1.0);
+
+        vec4 clipPosA = camera.projection * camera.view * fragPosA;
+        vec4 clipPosB = camera.projection * camera.view * fragPosB;
+        vec4 clipPosC = camera.projection * camera.view * fragPosC;
+
+        vec3 vertexClipA = vec3((clipPosA.xy / clipPosA.w * 0.5 + vec2(0.5)) * globalDataRef.globalData.screenSize, clipPosA.w);
+        vec3 vertexClipB = vec3((clipPosB.xy / clipPosB.w * 0.5 + vec2(0.5)) * globalDataRef.globalData.screenSize, clipPosB.w);
+        vec3 vertexClipC = vec3((clipPosC.xy / clipPosC.w * 0.5 + vec2(0.5)) * globalDataRef.globalData.screenSize, clipPosC.w);
+
+        bool culled = false;
+
+        vec2 pa = vertexClipA.xy;
+        vec2 pb = vertexClipB.xy;
+        vec2 pc = vertexClipC.xy;
+
+        vec2 eb = pb - pa;
+        vec2 ec = pc - pa;
+
+        culled = culled || (eb.x * ec.y >= eb.y * ec.x);
+
+        vec2 bmin = min(pa, min(pb, pc));
+        vec2 bmax = max(pa, max(pb, pc));
+        float sbprec = 1.0 / 256.0;
+
+        culled = culled || (round(bmin.x - sbprec) == round(bmax.x) || round(bmin.y) == round(bmax.y + sbprec));
+        culled = culled && (vertexClipA.z > 0 && vertexClipB.z > 0 && vertexClipC.z > 0);
+        sharedCulled[id] = culled;
+        if (!culled) {
+            atomicAdd(sharedPrimitivesPassed, 1);
+        }
+    }
+
+    barrier();
+    if (sharedPrimitivesPassed == 0)
+        return;
+
     if (threadIndex == 0) {
-        sharedIndexOffset = atomicAdd(meshletIndexBuffer.indexCount, meshlet.primitiveCount * 3);
+        sharedIndexOffset = atomicAdd(meshletIndexBuffer.indexCount, sharedPrimitivesPassed * 3);
 
     }
     barrier();
@@ -64,10 +128,10 @@ void main() {
     barrier();
 
     if (threadIndex == 0) {
-        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.trianglesDrawn, meshlet.primitiveCount);
+        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.trianglesDrawn, sharedPrimitivesPassed);
         uint drawIndex = atomicAdd(drawCommandBuffer.drawCount, 1);
         DrawIndirectCommand drawCommand;
-        drawCommand.vertexCount = meshlet.primitiveCount * 3;
+        drawCommand.vertexCount = sharedPrimitivesPassed * 3;
         drawCommand.firstVertex = sharedIndexOffset;
         drawCommand.instanceCount = 1;
         drawCommand.firstInstance = 0;
@@ -77,14 +141,19 @@ void main() {
     for (uint i = 0; i < MAX_PRIMITIVES_PER_THREAD; i++) {
         uint id = min(threadIndex + i * WORKGROUP_SIZE_X, meshlet.primitiveCount - 1);
 
-        uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 0];
-        uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 1];
-        uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 2];
+        if (!sharedCulled[id]) {
+            uint index = atomicAdd(sharedPrimitiveId, 1);
 
-        uint indexOffset = sharedIndexOffset + id * 3;
-        meshletIndexBuffer.indices[indexOffset + 0] = setMeshletID(meshletIndex) | setPrimitiveID(a);
-        meshletIndexBuffer.indices[indexOffset + 1] = setMeshletID(meshletIndex) | setPrimitiveID(b);
-        meshletIndexBuffer.indices[indexOffset + 2] = setMeshletID(meshletIndex) | setPrimitiveID(c);
+            uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 0];
+            uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 1];
+            uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 2];
+
+            uint indexOffset = sharedIndexOffset + index * 3;
+            meshletIndexBuffer.indices[indexOffset + 0] = setMeshletID(meshletIndex) | setPrimitiveID(a);
+            meshletIndexBuffer.indices[indexOffset + 1] = setMeshletID(meshletIndex) | setPrimitiveID(b);
+            meshletIndexBuffer.indices[indexOffset + 2] = setMeshletID(meshletIndex) | setPrimitiveID(c);
+        }
+
     }
 
 }

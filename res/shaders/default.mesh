@@ -32,6 +32,8 @@ layout (push_constant) uniform Push {
     CameraBuffer cameraBuffer;
 };
 
+shared vec3 vertexClip[MAX_MESHLET_VERTICES];
+
 layout (local_size_x = WORKGROUP_SIZE_X) in;
 layout (triangles, max_vertices = MAX_MESHLET_VERTICES, max_primitives = MAX_MESHLET_PRIMTIVES) out;
 void main() {
@@ -59,11 +61,14 @@ void main() {
         uint index = indexBuffer.indices[meshlet.indexOffset + id] + meshlet.vertexOffset;
         Vertex vertex = vertexBuffer.vertices[index];
         vec4 fragPos = transformsBuffer.transforms[instance.meshId] * vec4(vertex.position, 1.0);
+        vec4 clipPos = camera.projection * camera.view * fragPos;
+
+        vertexClip[id] = vec3((clipPos.xy / clipPos.w * 0.5 + vec2(0.5)) * globalDataRef.globalData.screenSize, clipPos.w);
 
         meshOut[threadIndex].drawId = instance.meshId;
         meshOut[threadIndex].meshletId = instance.meshletId;
 
-        gl_MeshVerticesEXT[threadIndex].gl_Position = camera.projection * camera.view * fragPos;
+        gl_MeshVerticesEXT[threadIndex].gl_Position = clipPos;
     }
 
     for (uint i = 0; i < MAX_PRIMITIVES_PER_THREAD; i++) {
@@ -74,5 +79,27 @@ void main() {
 
         gl_PrimitiveTriangleIndicesEXT[id] = uvec3(a, b, c);
         gl_MeshPrimitivesEXT[id].gl_PrimitiveID = int(id);
+
+        // small primitive culling from
+        // https://github.com/zeux/niagara/blob/master/src/shaders/meshlet.mesh.glsl
+        bool culled = false;
+
+        vec2 pa = vertexClip[a].xy;
+        vec2 pb = vertexClip[b].xy;
+        vec2 pc = vertexClip[c].xy;
+
+        vec2 eb = pb - pa;
+        vec2 ec = pc - pa;
+
+        culled = culled || (eb.x * ec.y >= eb.y * ec.x);
+
+        vec2 bmin = min(pa, min(pb, pc));
+        vec2 bmax = max(pa, max(pb, pc));
+        float sbprec = 1.0 / 256.0;
+
+        culled = culled || (round(bmin.x - sbprec) == round(bmax.x) || round(bmin.y) == round(bmax.y + sbprec));
+        culled = culled && (vertexClip[a].z > 0 && vertexClip[b].z > 0 && vertexClip[c].z > 0);
+
+        gl_MeshPrimitivesEXT[id].gl_CullPrimitiveEXT = culled;
     }
 }

@@ -139,6 +139,7 @@ struct GlobalData {
     uint maxMeshCount;
     uint maxMeshletCount;
     uint maxIndirectIndexCount;
+    uvec2 screenSize;
     FeedbackInfoRef feedbackInfoRef;
 };
 #ifndef __cplusplus
