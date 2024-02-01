@@ -16,7 +16,7 @@
 #include <cen.glsl>
 
 constexpr const u32 MAX_MESHLET_VERTICES = 64;
-constexpr const u32 MAX_MESHLET_PRIMTIVES = 128;
+constexpr const u32 MAX_MESHLET_PRIMTIVES = 64;
 
 template <>
 struct fastgltf::ElementTraits<ende::math::Vec3f> : fastgltf::ElementTraitsBase<ende::math::Vec3f, AccessorType::Vec3, float> {};
@@ -297,8 +297,8 @@ int main(int argc, char* argv[]) {
     FeedbackInfo feedbackInfo = {};
     GlobalData globalData = {
             .maxMeshCount = scene.meshCount(),
-//            .maxMeshletCount = scene.meshCount() * scene.maxMeshlets()
-            .maxMeshletCount = 10000000
+            .maxMeshletCount = 10000000,
+            .maxIndirectIndexCount = 10000000 * 3
     };
 
     uploadBuffer.upload(vertexBuffer, vertices);
@@ -817,17 +817,28 @@ int main(int argc, char* argv[]) {
                         .transformsBuffer = transformsBuffer->address(),
                         .cameraBuffer = cameraBuffer->address()
                 });
-//                cmd.drawMeshTasksWorkgroups(meshlets.size(), 1, 1);
                 cmd.drawMeshTasksIndirect(meshletCommandBuffer, 0, 1);
             });
         } else {
             auto outputIndicesIndex = renderGraph.addBuffer({
-                .size = static_cast<u32>(scene.maxMeshlets() * scene.meshCount() * MAX_MESHLET_PRIMTIVES * 3 * sizeof(u32)),
+                .size = static_cast<u32>(sizeof(u32) + globalData.maxIndirectIndexCount * sizeof(u32)),
                 .name = "output_indices_buffer"
             });
             auto drawCommandsIndex = renderGraph.addBuffer({
-                .size = static_cast<u32>(sizeof(u32) + scene.maxMeshlets() * scene.meshCount() * sizeof(VkDrawIndexedIndirectCommand)),
+                .size = static_cast<u32>(sizeof(u32) + globalData.maxMeshletCount * sizeof(VkDrawIndexedIndirectCommand)),
                 .name = "draw_commands_buffer"
+            });
+
+            auto& clearPass = renderGraph.addPass("clear", canta::RenderPass::Type::TRANSFER);
+            auto outputIndicesAlias = renderGraph.addAlias(outputIndicesIndex);
+            auto drawCommandsAlias = renderGraph.addAlias(drawCommandsIndex);
+            clearPass.addTransferWrite(drawCommandsAlias);
+            clearPass.addTransferWrite(outputIndicesAlias);
+            clearPass.setExecuteFunction([outputIndicesAlias, drawCommandsAlias] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto outputIndicesBuffer = graph.getBuffer(outputIndicesAlias);
+                auto drawCommandBuffer = graph.getBuffer(drawCommandsAlias);
+                cmd.clearBuffer(outputIndicesBuffer);
+                cmd.clearBuffer(drawCommandBuffer);
             });
 
             auto& outputIndexBufferPass = renderGraph.addPass("output_index_buffer", canta::RenderPass::Type::COMPUTE);
@@ -835,7 +846,9 @@ int main(int argc, char* argv[]) {
             outputIndexBufferPass.addStorageBufferRead(primitiveBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferRead(meshletInstanceBuffer2Index, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(outputIndicesAlias, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(outputIndicesIndex, canta::PipelineStage::COMPUTE_SHADER);
+            outputIndexBufferPass.addStorageBufferRead(drawCommandsAlias, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(drawCommandsIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER);
             outputIndexBufferPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {

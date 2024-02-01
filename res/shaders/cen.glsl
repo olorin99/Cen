@@ -138,6 +138,7 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) buffer FeedbackInf
 struct GlobalData {
     uint maxMeshCount;
     uint maxMeshletCount;
+    uint maxIndirectIndexCount;
     FeedbackInfoRef feedbackInfoRef;
 };
 #ifndef __cplusplus

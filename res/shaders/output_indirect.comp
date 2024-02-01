@@ -40,13 +40,12 @@ shared uint sharedIndexOffset;
 layout (local_size_x = WORKGROUP_SIZE_X) in;
 void main() {
 
-    if (gl_GlobalInvocationID.x == 0) {
-        meshletIndexBuffer.indexCount = 0;
-        drawCommandBuffer.drawCount = 0;
+    uint threadIndex = gl_LocalInvocationIndex;
+    if (threadIndex == 0) {
+        sharedIndexOffset = 0;
     }
     barrier();
 
-    uint threadIndex = gl_LocalInvocationIndex;
     uint meshletIndex = gl_WorkGroupID.x + gl_NumWorkGroups.x * gl_WorkGroupID.y;
     if (meshletIndex >= meshletInstanceBuffer.count) {
         return;
@@ -55,9 +54,17 @@ void main() {
     MeshletInstance instance = meshletInstanceBuffer.instances[meshletIndex];
     Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
 
-    if (gl_LocalInvocationIndex == 0) {
-        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.trianglesDrawn, meshlet.primitiveCount);
+    if (threadIndex == 0) {
         sharedIndexOffset = atomicAdd(meshletIndexBuffer.indexCount, meshlet.primitiveCount * 3);
+
+    }
+    barrier();
+    if (sharedIndexOffset >= globalDataRef.globalData.maxIndirectIndexCount)
+        return;
+    barrier();
+
+    if (threadIndex == 0) {
+        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.trianglesDrawn, meshlet.primitiveCount);
         uint drawIndex = atomicAdd(drawCommandBuffer.drawCount, 1);
         DrawIndirectCommand drawCommand;
         drawCommand.vertexCount = meshlet.primitiveCount * 3;
@@ -66,7 +73,6 @@ void main() {
         drawCommand.firstInstance = 0;
         drawCommandBuffer.commands[drawIndex] = drawCommand;
     }
-    barrier();
 
     for (uint i = 0; i < MAX_PRIMITIVES_PER_THREAD; i++) {
         uint id = min(threadIndex + i * WORKGROUP_SIZE_X, meshlet.primitiveCount - 1);
