@@ -23,6 +23,8 @@ namespace cen {
 
         auto meshCount() const -> u32 { return _meshes.size(); }
         auto maxMeshlets() const -> u32 { return _maxMeshlets; }
+        auto totalMeshlets() const -> u32 { return _totalMeshlets; }
+        auto totalPrimtives() const -> u32 { return _totalPrimitives; }
 
 //    private:
 
@@ -35,6 +37,8 @@ namespace cen {
         canta::BufferHandle _transformBuffer[canta::FRAMES_IN_FLIGHT] = {};
 
         u32 _maxMeshlets = 0;
+        u32 _totalMeshlets = 0;
+        u32 _totalPrimitives = 0;
 
     };
 

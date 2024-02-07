@@ -50,4 +50,5 @@ void cen::Scene::addMesh(const GPUMesh &mesh, const ende::math::Mat4f &transform
     _transforms.push_back(transform);
     assert(_meshes.size() == _transforms.size());
     _maxMeshlets = std::max(_maxMeshlets, mesh.meshletCount);
+    _totalMeshlets += mesh.meshletCount;
 }

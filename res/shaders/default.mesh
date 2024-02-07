@@ -33,12 +33,17 @@ layout (push_constant) uniform Push {
 };
 
 shared vec3 vertexClip[MAX_MESHLET_VERTICES];
+shared uint sharedPassedPrimitives;
 
 layout (local_size_x = WORKGROUP_SIZE_X) in;
 layout (triangles, max_vertices = MAX_MESHLET_VERTICES, max_primitives = MAX_MESHLET_PRIMTIVES) out;
 void main() {
 
     uint threadIndex = gl_LocalInvocationIndex;
+    if (threadIndex == 0) {
+        sharedPassedPrimitives = 0;
+    }
+    barrier();
 
     GPUCamera camera = cameraBuffer.camera;
 
@@ -51,10 +56,6 @@ void main() {
     Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
 
     SetMeshOutputsEXT(meshlet.indexCount, meshlet.primitiveCount);
-
-    if (threadIndex == 0) {
-        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.trianglesDrawn, meshlet.primitiveCount);
-    }
 
     for (uint i = 0; i < MAX_VERTICES_PER_THREAD; i++) {
         const uint id = min(threadIndex + i * WORKGROUP_SIZE_X, meshlet.indexCount - 1);
@@ -100,6 +101,15 @@ void main() {
         culled = culled || (round(bmin.x - sbprec) == round(bmax.x) || round(bmin.y) == round(bmax.y + sbprec));
         culled = culled && (vertexClip[a].z > 0 && vertexClip[b].z > 0 && vertexClip[c].z > 0);
 
+        if (!culled) {
+            atomicAdd(sharedPassedPrimitives, 1);
+        }
+
         gl_MeshPrimitivesEXT[id].gl_CullPrimitiveEXT = culled;
+    }
+
+    barrier();
+    if (threadIndex == 0) {
+        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.trianglesDrawn, sharedPassedPrimitives);
     }
 }

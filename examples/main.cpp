@@ -25,7 +25,7 @@ struct fastgltf::ElementTraits<ende::math::Vec<2, f32>> : fastgltf::ElementTrait
 template <>
 struct fastgltf::ElementTraits<ende::math::Vec4f> : fastgltf::ElementTraitsBase<ende::math::Vec4f, AccessorType::Vec4, float> {};
 
-std::string numberToWord(u32 number) {
+std::string numberToWord(u64 number) {
     if (number > 1000000000) {
         return std::to_string(number / 1000000000) + " billion";
     } else if (number > 1000000) {
@@ -471,6 +471,9 @@ int main(int argc, char* argv[]) {
                 if (ImGui::TreeNode("Feedback")) {
                     ImGui::Checkbox("Numerical Stats", &numericalStats);
                     if (numericalStats) {
+                        ImGui::Text("Total Meshlets: %d", scene.totalMeshlets());
+                        ImGui::Text("Total Primitives: %d", scene.totalMeshlets() * primitives.size());
+
                         ImGui::Text("Drawn Meshes: %d", feedbackInfo.meshesDrawn);
                         ImGui::Text("Culled Meshes: %d", feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn);
                         f32 culledMeshRatio = (static_cast<f32>(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn) / (static_cast<f32>(feedbackInfo.meshesDrawn) + static_cast<f32>(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn))) * 100;
@@ -485,6 +488,9 @@ int main(int argc, char* argv[]) {
                         ImGui::Text("Culled meshlet ratio: %.0f%%", culledMeshletRatio);
                         ImGui::Text("Drawn Triangles %d", feedbackInfo.trianglesDrawn);
                     } else {
+                        ImGui::Text("Total Meshlets: %s", numberToWord(scene.totalMeshlets()).c_str());
+                        ImGui::Text("Total Primitives: %s", numberToWord(scene.totalMeshlets() * primitives.size()).c_str());
+
                         ImGui::Text("Drawn Meshes: %s", numberToWord(feedbackInfo.meshesDrawn).c_str());
                         ImGui::Text("Culled Meshes: %s", numberToWord(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn).c_str());
                         f32 culledMeshRatio = (static_cast<f32>(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn) / (static_cast<f32>(feedbackInfo.meshesDrawn) + static_cast<f32>(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn))) * 100;
