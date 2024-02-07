@@ -18,7 +18,17 @@ add_library(Cen
         src/Model.cpp
         include/Cen/Model.h
         src/AssetManager.cpp
-        include/Cen/AssetManager.h)
+        include/Cen/AssetManager.h
+        src/ui/GuiWorkspace.cpp
+        include/Cen/ui/GuiWorkspace.h
+        include/Cen/ui/Window.h
+        src/ui/SettingsWindow.cpp
+        include/Cen/ui/SettingsWindow.h
+        src/ui/StatisticsWindow.cpp
+        include/Cen/ui/StatisticsWindow.h)
+
+set(CANTA_ENABLE_EXAMPLES OFF)
+set(CANTA_ENABLE_IMGUI ON)
 
 add_subdirectory(third_party)
 target_include_directories(Cen
