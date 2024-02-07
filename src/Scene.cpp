@@ -6,6 +6,7 @@ auto cen::Scene::create(cen::Scene::CreateInfo info) -> Scene {
     Scene scene = {};
 
     scene._engine = info.engine;
+    scene._rootNode = std::make_unique<SceneNode>();
     for (u32 i = 0; auto& buffer : scene._meshBuffer) {
         buffer = info.engine->device()->createBuffer({
             .size = 100 * sizeof(GPUMesh),
@@ -28,6 +29,16 @@ auto cen::Scene::create(cen::Scene::CreateInfo info) -> Scene {
     return scene;
 }
 
+void traverseNode(cen::Scene::SceneNode* node, ende::math::Mat4f worldTransform, std::vector<ende::math::Mat4f>& transforms) {
+    worldTransform = worldTransform * node->transform;
+    if (node->type == cen::Scene::NodeType::MESH) {
+        transforms[node->index] = worldTransform;
+    }
+    for (auto& child : node->children) {
+        traverseNode(child.get(), worldTransform, transforms);
+    }
+}
+
 void cen::Scene::prepare() {
     u32 flyingIndex = _engine->device()->flyingIndex();
     if (_meshBuffer[flyingIndex]->size() < _meshes.size() * sizeof(GPUMesh)) {
@@ -41,11 +52,14 @@ void cen::Scene::prepare() {
         }, _transformBuffer[flyingIndex]);
     }
 
+    traverseNode(_rootNode.get(), ende::math::identity<4, f32>(), _transforms);
+
     _meshBuffer[flyingIndex]->data(_meshes);
     _transformBuffer[flyingIndex]->data(_transforms);
 }
 
-void cen::Scene::addMesh(const Mesh &mesh, const ende::math::Mat4f &transform) {
+auto cen::Scene::addMesh(const cen::Mesh &mesh, const ende::math::Mat4f &transform, cen::Scene::SceneNode *parent) -> SceneNode* {
+    auto index = _meshes.size();
     _meshes.push_back({
         .meshletOffset = mesh.meshletOffset,
         .meshletCount = mesh.meshletCount,
@@ -53,7 +67,19 @@ void cen::Scene::addMesh(const Mesh &mesh, const ende::math::Mat4f &transform) {
         .max = mesh.max
     });
     _transforms.push_back(transform);
-    assert(_meshes.size() == _transforms.size());
-    _maxMeshlets = std::max(_maxMeshlets, mesh.meshletCount);
-    _totalMeshlets += mesh.meshletCount;
+
+    auto node = std::make_unique<SceneNode>();
+    node->type = NodeType::MESH;
+    node->transform = transform;
+    node->index = index;
+
+    if (parent) {
+        node->parent = parent;
+        parent->children.push_back(std::move(node));
+        return parent->children.back().get();
+    } else {
+        node->parent = _rootNode.get();
+        _rootNode->children.push_back(std::move(node));
+        return _rootNode->children.back().get();
+    }
 }
