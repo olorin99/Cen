@@ -3,8 +3,15 @@
 
 #include <Canta/Device.h>
 #include <Canta/PipelineManager.h>
+#include <Canta/UploadBuffer.h>
+#include <Cen/AssetManager.h>
+
+#include <cen.glsl>
 
 namespace cen {
+
+    constexpr const u32 MAX_MESHLET_VERTICES = 64;
+    constexpr const u32 MAX_MESHLET_PRIMTIVES = 64;
 
     class Engine {
     public:
@@ -15,21 +22,45 @@ namespace cen {
             std::filesystem::path assetPath = {};
             bool meshShadingEnabled = true;
         };
-        static auto create(CreateInfo info) -> Engine;
+        static auto create(CreateInfo info) -> std::unique_ptr<Engine>;
+
+        Engine() = default;
 
         auto device() const -> canta::Device* { return _device.get(); }
 
+        auto assetManager() -> AssetManager& { return _assetManager; }
+
         auto pipelineManager() -> canta::PipelineManager& { return _pipelineManager; }
+        auto uploadBuffer() -> canta::UploadBuffer& { return _uploadBuffer; }
+
+        auto vertexBuffer() const -> canta::BufferHandle { return _vertexBuffer; }
+        auto indexBuffer() const -> canta::BufferHandle { return _indexBuffer; }
+        auto primitiveBuffer() const -> canta::BufferHandle { return _primitiveBuffer; }
+        auto meshletBuffer() const -> canta::BufferHandle { return _meshletBuffer; }
 
         auto meshShadingEnabled() const -> bool { return _meshShadingEnabled; }
         auto setMeshShadingEnabled(bool enabled) -> bool;
 
-    private:
+        auto uploadVertexData(std::span<const Vertex> data) -> u32;
+        auto uploadIndexData(std::span<const u32> data) -> u32;
+        auto uploadPrimitiveData(std::span<const u8> data) -> u32;
+        auto uploadMeshletData(std::span<const Meshlet> data) -> u32;
 
-        Engine() = default;
+    private:
 
         std::unique_ptr<canta::Device> _device = {};
         canta::PipelineManager _pipelineManager = {};
+        canta::UploadBuffer _uploadBuffer = {};
+        AssetManager _assetManager = {};
+
+        canta::BufferHandle _vertexBuffer = {};
+        u32 _vertexOffset = 0;
+        canta::BufferHandle _indexBuffer = {};
+        u32 _indexOffset = 0;
+        canta::BufferHandle _primitiveBuffer = {};
+        u32 _primitiveOffset = 0;
+        canta::BufferHandle _meshletBuffer = {};
+        u32 _meshletOffset = 0;
 
         bool _meshShadingEnabled = true;
 

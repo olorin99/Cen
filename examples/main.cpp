@@ -6,24 +6,9 @@
 #include <Cen/Engine.h>
 #include <Cen/Camera.h>
 #include <Cen/Scene.h>
-
-#include <fastgltf/parser.hpp>
-#include <fastgltf/types.hpp>
-#include <fastgltf/tools.hpp>
-#include <meshoptimizer.h>
-#include <stack>
-
+#include <cstring>
 #include <cen.glsl>
 
-constexpr const u32 MAX_MESHLET_VERTICES = 64;
-constexpr const u32 MAX_MESHLET_PRIMTIVES = 64;
-
-template <>
-struct fastgltf::ElementTraits<ende::math::Vec3f> : fastgltf::ElementTraitsBase<ende::math::Vec3f, AccessorType::Vec3, float> {};
-template <>
-struct fastgltf::ElementTraits<ende::math::Vec<2, f32>> : fastgltf::ElementTraitsBase<ende::math::Vec<2, f32>, AccessorType::Vec2, float> {};
-template <>
-struct fastgltf::ElementTraits<ende::math::Vec4f> : fastgltf::ElementTraitsBase<ende::math::Vec4f, AccessorType::Vec4, float> {};
 
 std::string numberToWord(u64 number) {
     if (number > 1000000000) {
@@ -52,181 +37,29 @@ int main(int argc, char* argv[]) {
         .assetPath = std::filesystem::path(CEN_SRC_DIR) / "res",
         .meshShadingEnabled = true
     });
-    auto swapchain = engine.device()->createSwapchain({
+    auto swapchain = engine->device()->createSwapchain({
         .window = &window
     });
 
     auto renderGraph = canta::RenderGraph::create({
-        .device = engine.device(),
+        .device = engine->device(),
         .name = "RenderGraph"
     });
     auto imguiContext = canta::ImGuiContext::create({
-        .device = engine.device(),
+        .device = engine->device(),
         .window = &window
     });
-    auto uploadBuffer = canta::UploadBuffer::create({
-        .device = engine.device(),
-        .size = 1 << 16
-    });
-
     auto scene = cen::Scene::create({
-        .engine = &engine
+        .engine = engine.get()
     });
 
-
-    fastgltf::Parser parser;
-    fastgltf::GltfDataBuffer data;
-    data.loadFromFile(gltfPath);
-    auto type = fastgltf::determineGltfFileType(&data);
-    auto asset = type == fastgltf::GltfType::GLB ?
-            parser.loadGltfBinary(&data, gltfPath.parent_path(), fastgltf::Options::None) :
-            parser.loadGltf(&data, gltfPath.parent_path(), fastgltf::Options::LoadGLBBuffers | fastgltf::Options::LoadExternalBuffers);
-
-    if (auto error = asset.error(); error != fastgltf::Error::None) {
-        return -2;
-    }
-
-    std::vector<Vertex> vertices = {};
-    std::vector<u32> indices = {};
-    std::vector<Meshlet> meshlets = {};
-    std::vector<u8> primitives = {};
-
-    std::vector<GPUMesh> meshes = {};
-
-    struct NodeInfo {
-        u32 assetIndex = 0;
-    };
-    std::stack<NodeInfo> nodeInfos = {};
-    for (u32 index : asset->scenes.front().nodeIndices) {
-        nodeInfos.push({
-            .assetIndex = index
-        });
-    }
-
-    while (!nodeInfos.empty()) {
-        auto [ assetIndex ] = nodeInfos.top();
-        nodeInfos.pop();
-
-        auto& assetNode = asset->nodes[assetIndex];
-
-        ende::math::Mat4f transform = ende::math::identity<4, f32>();
-        if (auto trs = std::get_if<fastgltf::TRS>(&assetNode.transform); trs) {
-            ende::math::Quaternion rotation(trs->rotation[0], trs->rotation[1], trs->rotation[2], trs->rotation[3]);
-            ende::math::Vec3f scale{ trs->scale[0], trs->scale[1], trs->scale[2] };
-            ende::math::Vec3f translation{ trs->translation[0], trs->translation[1], trs->translation[2] };
-
-            transform = ende::math::translation<4, f32>(translation) * rotation.toMat() * ende::math::scale<4, f32>(scale);
-        } else if (auto* mat = std::get_if<fastgltf::Node::TransformMatrix>(&assetNode.transform); mat) {
-            transform = ende::math::Mat4f(*mat);
-        }
-
-        for (u32 child : assetNode.children) {
-            nodeInfos.push({
-                .assetIndex = child
-            });
-        }
-
-        if (!assetNode.meshIndex.has_value())
-            continue;
-        u32 meshIndex = assetNode.meshIndex.value();
-        auto& assetMesh = asset->meshes[meshIndex];
-        for (auto& primitive : assetMesh.primitives) {
-            ende::math::Vec4f min = { std::numeric_limits<f32>::max(), std::numeric_limits<f32>::max(), std::numeric_limits<f32>::max() };
-            ende::math::Vec4f max = { std::numeric_limits<f32>::lowest(), std::numeric_limits<f32>::lowest(), std::numeric_limits<f32>::lowest() };
-
-            u32 firstVertex = vertices.size();
-            u32 firstIndex = indices.size();
-            u32 firstMeshlet = meshlets.size();
-            u32 firstPrimitive = primitives.size();
-
-            auto& indicesAccessor = asset->accessors[primitive.indicesAccessor.value()];
-            u32 indexCount = indicesAccessor.count;
-
-            std::vector<Vertex> meshVertices = {};
-            std::vector<u32> meshIndices(indexCount);
-            fastgltf::iterateAccessorWithIndex<u32>(asset.get(), indicesAccessor, [&](u32 index, u32 idx) {
-                meshIndices[idx] = index;
-            });
-
-            if (auto positionsIt = primitive.findAttribute("POSITION"); positionsIt != primitive.attributes.end()) {
-                auto& positionsAccessor = asset->accessors[positionsIt->second];
-                meshVertices.resize(positionsAccessor.count);
-                fastgltf::iterateAccessorWithIndex<ende::math::Vec3f>(asset.get(), positionsAccessor, [&](ende::math::Vec3f position, u32 idx) {
-                    position = transform.transform(position);
-                    meshVertices[idx].position = position;
-
-                    min = { std::min(min.x(), position.x()), std::min(min.y(), position.y()), std::min(min.z(), position.z()), 1 };
-                    max = { std::max(max.x(), position.x()), std::max(max.y(), position.y()), std::max(max.z(), position.z()), 1 };
-                });
-            }
-
-            if (auto uvsIt = primitive.findAttribute("TEXCOORD_0"); uvsIt != primitive.attributes.end()) {
-                auto& uvsAccessor = asset->accessors[uvsIt->second];
-                meshVertices.resize(uvsAccessor.count);
-                fastgltf::iterateAccessorWithIndex<ende::math::Vec<2, f32>>(asset.get(), uvsAccessor, [&](ende::math::Vec<2, f32> uvs, u32 idx) {
-                    meshVertices[idx].uv = uvs;
-                });
-            }
-
-            if (auto normalsIt = primitive.findAttribute("NORMAL"); normalsIt != primitive.attributes.end()) {
-                auto& normalsAccessor = asset->accessors[normalsIt->second];
-                meshVertices.resize(normalsAccessor.count);
-                fastgltf::iterateAccessorWithIndex<ende::math::Vec3f>(asset.get(), normalsAccessor, [&](ende::math::Vec3f normal, u32 idx) {
-                    meshVertices[idx].normal = normal;
-                });
-            }
-
-            const u32 coneWeight = 0.f;
-
-            u32 maxMeshlets = meshopt_buildMeshletsBound(meshIndices.size(), MAX_MESHLET_VERTICES, MAX_MESHLET_PRIMTIVES);
-            std::vector<meshopt_Meshlet> meshoptMeshlets(maxMeshlets);
-            std::vector<u32> meshletIndices(maxMeshlets * MAX_MESHLET_VERTICES);
-            std::vector<u8> meshletPrimitives(maxMeshlets * MAX_MESHLET_PRIMTIVES * 3);
-
-            u32 meshletCount = meshopt_buildMeshlets(meshoptMeshlets.data(), meshletIndices.data(), meshletPrimitives.data(), meshIndices.data(), meshIndices.size(), (f32*)meshVertices.data(), meshVertices.size(), sizeof(Vertex), MAX_MESHLET_VERTICES, MAX_MESHLET_PRIMTIVES, coneWeight);
-
-            auto& lastMeshlet = meshoptMeshlets[meshletCount - 1];
-            meshletIndices.resize(lastMeshlet.vertex_offset + lastMeshlet.vertex_count);
-            meshletPrimitives.resize(lastMeshlet.triangle_offset + ((lastMeshlet.triangle_count * 3 + 3) & ~3));
-            meshoptMeshlets.resize(meshletCount);
-
-            std::vector<Meshlet> meshMeshlets;
-            meshMeshlets.reserve(meshletCount);
-            for (auto& meshlet : meshoptMeshlets) {
-                auto bounds = meshopt_computeMeshletBounds(&meshletIndices[meshlet.vertex_offset], &meshletPrimitives[meshlet.triangle_offset], meshlet.triangle_count, (f32*)meshVertices.data(), meshVertices.size(), sizeof(Vertex));
-
-                ende::math::Vec3f center = { bounds.center[0], bounds.center[1], bounds.center[2] };
-
-                meshMeshlets.push_back({
-                    .vertexOffset = firstVertex,
-                    .indexOffset = meshlet.vertex_offset + firstIndex,
-                    .indexCount = meshlet.vertex_count,
-                    .primitiveOffset = meshlet.triangle_offset + firstPrimitive,
-                    .primitiveCount = meshlet.triangle_count,
-                    .center = center,
-                    .radius = bounds.radius
-                });
-            }
-
-            vertices.insert(vertices.end(), meshVertices.begin(), meshVertices.end());
-            indices.insert(indices.end(), meshletIndices.begin(), meshletIndices.end());
-            primitives.insert(primitives.end(), meshletPrimitives.begin(), meshletPrimitives.end());
-            meshlets.insert(meshlets.end(), meshMeshlets.begin(), meshMeshlets.end());
-
-            meshes.push_back(GPUMesh{
-                .meshletOffset = firstMeshlet,
-                .meshletCount = static_cast<u32>(meshMeshlets.size()),
-                .min = min,
-                .max = max
-            });
-        }
-    }
+    auto model = engine->assetManager().loadModel(gltfPath);
 
     f32 scale = 4;
     for (u32 i = 0; i < 30; i++) {
         for (u32 j = 0; j < 30; j++) {
             for (u32 k = 0; k < 1; k++) {
-                for (auto& mesh : meshes) {
+                for (auto& mesh : model->meshes) {
                     scene.addMesh(mesh, ende::math::translation<4, f32>({ static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }));
                 }
             }
@@ -235,7 +68,7 @@ int main(int argc, char* argv[]) {
 
     std::array<canta::BufferHandle, canta::FRAMES_IN_FLIGHT> globalBuffers = {};
     for (u32 i = 0; auto& buffer : globalBuffers) {
-        buffer = engine.device()->createBuffer({
+        buffer = engine->device()->createBuffer({
             .size = sizeof(GlobalData),
             .usage = canta::BufferUsage::STORAGE,
             .type = canta::MemoryType::STAGING,
@@ -245,7 +78,7 @@ int main(int argc, char* argv[]) {
     }
     std::array<canta::BufferHandle, canta::FRAMES_IN_FLIGHT> feedbackBuffers = {};
     for (u32 i = 0; auto& buffer : feedbackBuffers) {
-        buffer = engine.device()->createBuffer({
+        buffer = engine->device()->createBuffer({
             .size = sizeof(FeedbackInfo),
             .usage = canta::BufferUsage::STORAGE,
             .type = canta::MemoryType::READBACK,
@@ -253,26 +86,6 @@ int main(int argc, char* argv[]) {
             .name = std::format("feedback_buffer: {}", i++)
         });
     }
-    auto vertexBuffer = engine.device()->createBuffer({
-        .size = static_cast<u32>(vertices.size() * sizeof(Vertex)),
-        .usage = canta::BufferUsage::STORAGE,
-        .name = "vertex_buffer"
-    });
-    auto indexBuffer = engine.device()->createBuffer({
-        .size = static_cast<u32>(indices.size() * sizeof(u32)),
-        .usage = canta::BufferUsage::STORAGE,
-        .name = "index_buffer"
-    });
-    auto primitiveBuffer = engine.device()->createBuffer({
-        .size = static_cast<u32>(primitives.size() * sizeof(u8)),
-        .usage = canta::BufferUsage::STORAGE,
-        .name = "primitive_buffer"
-    });
-    auto meshletBuffer = engine.device()->createBuffer({
-        .size = static_cast<u32>(meshlets.size() * sizeof(Meshlet)),
-        .usage = canta::BufferUsage::STORAGE,
-        .name = "meshlet_buffer"
-    });
     auto camera = cen::Camera::create({
         .position = { 0, 0, 2 },
         .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180)),
@@ -285,7 +98,7 @@ int main(int argc, char* argv[]) {
 
     std::array<canta::BufferHandle, canta::FRAMES_IN_FLIGHT> cameraBuffers = {};
     for (auto& buffer : cameraBuffers) {
-        buffer = engine.device()->createBuffer({
+        buffer = engine->device()->createBuffer({
             .size = sizeof(cen::GPUCamera) * 2,
             .usage = canta::BufferUsage::STORAGE,
             .type = canta::MemoryType::STAGING,
@@ -302,69 +115,66 @@ int main(int argc, char* argv[]) {
             .screenSize = { 1920, 1080 }
     };
 
-    uploadBuffer.upload(vertexBuffer, vertices);
-    uploadBuffer.upload(indexBuffer, indices);
-    uploadBuffer.upload(primitiveBuffer, primitives);
-    uploadBuffer.upload(meshletBuffer, meshlets);
-    uploadBuffer.flushStagedData();
-    uploadBuffer.wait();
+    engine->uploadBuffer().flushStagedData();
+    engine->uploadBuffer().wait();
+    engine->uploadBuffer().clearSubmitted();
 
-    auto cullMeshPipeline = engine.pipelineManager().getPipeline({
-        .compute = { .module = engine.pipelineManager().getShader({
+    auto cullMeshPipeline = engine->pipelineManager().getPipeline({
+        .compute = { .module = engine->pipelineManager().getShader({
             .path = "shaders/cull_meshes.comp",
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
-    auto writeMeshCommandPipeline = engine.pipelineManager().getPipeline({
-        .compute = { .module = engine.pipelineManager().getShader({
+    auto writeMeshCommandPipeline = engine->pipelineManager().getPipeline({
+        .compute = { .module = engine->pipelineManager().getShader({
             .path = "shaders/write_mesh_command.comp",
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
-    auto cullMeshletPipeline = engine.pipelineManager().getPipeline({
-        .compute = { .module = engine.pipelineManager().getShader({
+    auto cullMeshletPipeline = engine->pipelineManager().getPipeline({
+        .compute = { .module = engine->pipelineManager().getShader({
             .path = "shaders/cull_meshlets.comp",
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
-    auto writeMeshletCommandPipeline = engine.pipelineManager().getPipeline({
-        .compute = { .module = engine.pipelineManager().getShader({
+    auto writeMeshletCommandPipeline = engine->pipelineManager().getPipeline({
+        .compute = { .module = engine->pipelineManager().getShader({
             .path = "shaders/write_meshlet_command.comp",
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
 
-    auto meshShader = engine.pipelineManager().getShader({
+    auto meshShader = engine->pipelineManager().getShader({
         .path = "shaders/default.mesh",
         .macros = std::to_array({
             canta::Macro{ "WORKGROUP_SIZE_X", std::to_string(64) },
-            canta::Macro{ "MAX_MESHLET_VERTICES", std::to_string(MAX_MESHLET_VERTICES) },
-            canta::Macro{ "MAX_MESHLET_PRIMTIVES", std::to_string(MAX_MESHLET_PRIMTIVES) }
+            canta::Macro{ "MAX_MESHLET_VERTICES", std::to_string(cen::MAX_MESHLET_VERTICES) },
+            canta::Macro{ "MAX_MESHLET_PRIMTIVES", std::to_string(cen::MAX_MESHLET_PRIMTIVES) }
         }),
         .stage = canta::ShaderStage::MESH
     });
-    auto fragmentShader = engine.pipelineManager().getShader({
+    auto fragmentShader = engine->pipelineManager().getShader({
         .path = "shaders/default.frag",
         .stage = canta::ShaderStage::FRAGMENT
     });
 
-    auto outputIndicesShader = engine.pipelineManager().getShader({
+    auto outputIndicesShader = engine->pipelineManager().getShader({
         .path = "shaders/output_indirect.comp",
         .macros = std::to_array({
             canta::Macro{ "WORKGROUP_SIZE_X", std::to_string(64) },
-            canta::Macro{ "MAX_MESHLET_VERTICES", std::to_string(MAX_MESHLET_VERTICES) },
-            canta::Macro{ "MAX_MESHLET_PRIMTIVES", std::to_string(MAX_MESHLET_PRIMTIVES) }
+            canta::Macro{ "MAX_MESHLET_VERTICES", std::to_string(cen::MAX_MESHLET_VERTICES) },
+            canta::Macro{ "MAX_MESHLET_PRIMTIVES", std::to_string(cen::MAX_MESHLET_PRIMTIVES) }
         }),
         .stage = canta::ShaderStage::COMPUTE
     });
-    auto outputIndicesPipeline = engine.pipelineManager().getPipeline({
+    auto outputIndicesPipeline = engine->pipelineManager().getPipeline({
         .compute = { .module = outputIndicesShader },
     });
-    auto vertexShader = engine.pipelineManager().getShader({
+    auto vertexShader = engine->pipelineManager().getShader({
         .path = "shaders/default.vert",
         .stage = canta::ShaderStage::VERTEX
     });
-    auto vertexPipeline = engine.pipelineManager().getPipeline({
+    auto vertexPipeline = engine->pipelineManager().getPipeline({
         .vertex = { .module = vertexShader },
         .fragment = { .module = fragmentShader },
         .rasterState = {
@@ -422,20 +232,20 @@ int main(int argc, char* argv[]) {
         }
 
 
-        engine.device()->beginFrame();
-        engine.device()->gc();
+        engine->device()->beginFrame();
+        engine->device()->gc();
         scene.prepare();
-        std::memcpy(&feedbackInfo, feedbackBuffers[engine.device()->flyingIndex()]->mapped().address(), sizeof(FeedbackInfo));
-        std::memset(feedbackBuffers[engine.device()->flyingIndex()]->mapped().address(), 0, sizeof(FeedbackInfo));
-        globalData.feedbackInfoRef = feedbackBuffers[engine.device()->flyingIndex()]->address();
-        globalBuffers[engine.device()->flyingIndex()]->data(globalData);
+        std::memcpy(&feedbackInfo, feedbackBuffers[engine->device()->flyingIndex()]->mapped().address(), sizeof(FeedbackInfo));
+        std::memset(feedbackBuffers[engine->device()->flyingIndex()]->mapped().address(), 0, sizeof(FeedbackInfo));
+        globalData.feedbackInfoRef = feedbackBuffers[engine->device()->flyingIndex()]->address();
+        globalBuffers[engine->device()->flyingIndex()]->data(globalData);
         renderGraph.reset();
 
         camera.updateFrustum();
         auto gpuCamera = camera.gpuCamera();
-        cameraBuffers[engine.device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)));
+        cameraBuffers[engine->device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)));
         if (culling)
-            cameraBuffers[engine.device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)), sizeof(gpuCamera));
+            cameraBuffers[engine->device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)), sizeof(gpuCamera));
 
         {
             imguiContext.beginFrame();
@@ -472,7 +282,7 @@ int main(int argc, char* argv[]) {
                     ImGui::Checkbox("Numerical Stats", &numericalStats);
                     if (numericalStats) {
                         ImGui::Text("Total Meshlets: %d", scene.totalMeshlets());
-                        ImGui::Text("Total Primitives: %d", scene.totalMeshlets() * primitives.size());
+//                        ImGui::Text("Total Primitives: %d", scene.totalMeshlets() * primitives.size());
 
                         ImGui::Text("Drawn Meshes: %d", feedbackInfo.meshesDrawn);
                         ImGui::Text("Culled Meshes: %d", feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn);
@@ -489,7 +299,7 @@ int main(int argc, char* argv[]) {
                         ImGui::Text("Drawn Triangles %d", feedbackInfo.trianglesDrawn);
                     } else {
                         ImGui::Text("Total Meshlets: %s", numberToWord(scene.totalMeshlets()).c_str());
-                        ImGui::Text("Total Primitives: %s", numberToWord(scene.totalMeshlets() * primitives.size()).c_str());
+//                        ImGui::Text("Total Primitives: %s", numberToWord(scene.totalMeshlets() * primitives.size()).c_str());
 
                         ImGui::Text("Drawn Meshes: %s", numberToWord(feedbackInfo.meshesDrawn).c_str());
                         ImGui::Text("Culled Meshes: %s", numberToWord(feedbackInfo.meshesTotal - feedbackInfo.meshesDrawn).c_str());
@@ -509,7 +319,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 if (ImGui::TreeNode("Resource Stats")) {
-                    auto resourceStats = engine.device()->resourceStats();
+                    auto resourceStats = engine->device()->resourceStats();
                     ImGui::Text("Shader Count %d", resourceStats.shaderCount);
                     ImGui::Text("Shader Allocated %d", resourceStats.shaderAllocated);
                     ImGui::Text("Pipeline Count %d", resourceStats.pipelineCount);
@@ -536,7 +346,7 @@ int main(int argc, char* argv[]) {
 
                 if (ImGui::TreeNode("Memory Stats")) {
                     VmaTotalStatistics statistics = {};
-                    vmaCalculateStatistics(engine.device()->allocator(), &statistics);
+                    vmaCalculateStatistics(engine->device()->allocator(), &statistics);
                     for (auto& stats : statistics.memoryHeap) {
                         if (stats.unusedRangeSizeMax == 0 && stats.allocationSizeMax == 0)
                             break;
@@ -560,9 +370,9 @@ int main(int argc, char* argv[]) {
             if (ImGui::Begin("Settings")) {
                 ImGui::Checkbox("Culling", &culling);
 
-                auto meshShadingEnabled = engine.meshShadingEnabled();
+                auto meshShadingEnabled = engine->meshShadingEnabled();
                 if (ImGui::Checkbox("Mesh Shading", &meshShadingEnabled))
-                    engine.setMeshShadingEnabled(meshShadingEnabled);
+                    engine->setMeshShadingEnabled(meshShadingEnabled);
 
                 auto timingEnabled = renderGraph.timingEnabled();
                 if (ImGui::Checkbox("RenderGraph Timing", &timingEnabled))
@@ -581,7 +391,7 @@ int main(int argc, char* argv[]) {
                 const char* modes[] = { "FIFO", "MAILBOX", "IMMEDIATE" };
                 static int modeIndex = 0;
                 if (ImGui::Combo("PresentMode", &modeIndex, modes, 3)) {
-                    engine.device()->waitIdle();
+                    engine->device()->waitIdle();
                     switch (modeIndex) {
                         case 0:
                             swapchain->setPresentMode(canta::PresentMode::FIFO);
@@ -609,23 +419,23 @@ int main(int argc, char* argv[]) {
         });
 
         auto vertexBufferIndex = renderGraph.addBuffer({
-            .handle = vertexBuffer,
+            .handle = engine->vertexBuffer(),
             .name = "vertex_buffer"
         });
         auto indexBufferIndex = renderGraph.addBuffer({
-            .handle = indexBuffer,
+            .handle = engine->indexBuffer(),
             .name = "index_buffer"
         });
         auto primitiveBufferIndex = renderGraph.addBuffer({
-            .handle = primitiveBuffer,
+            .handle = engine->primitiveBuffer(),
             .name = "primitive_buffer"
         });
         auto meshBufferIndex = renderGraph.addBuffer({
-            .handle = scene._meshBuffer[engine.device()->flyingIndex()],
+            .handle = scene._meshBuffer[engine->device()->flyingIndex()],
             .name = "mesh_buffer"
         });
         auto meshletBufferIndex = renderGraph.addBuffer({
-            .handle = meshletBuffer,
+            .handle = engine->meshletBuffer(),
             .name = "meshlet_buffer"
         });
         auto meshletInstanceBufferIndex = renderGraph.addBuffer({
@@ -641,11 +451,11 @@ int main(int argc, char* argv[]) {
             .name = "meshlet_command_buffer"
         });
         auto cameraBufferIndex = renderGraph.addBuffer({
-            .handle = cameraBuffers[engine.device()->flyingIndex()],
+            .handle = cameraBuffers[engine->device()->flyingIndex()],
             .name = "camera_buffer"
         });
         auto transformsIndex = renderGraph.addBuffer({
-            .handle = scene._transformBuffer[engine.device()->flyingIndex()],
+            .handle = scene._transformBuffer[engine->device()->flyingIndex()],
             .name = "transforms_buffer"
         });
 
@@ -655,7 +465,7 @@ int main(int argc, char* argv[]) {
             .name = "depth_image"
         });
         auto feedbackIndex = renderGraph.addBuffer({
-            .handle = feedbackBuffers[engine.device()->flyingIndex()],
+            .handle = feedbackBuffers[engine->device()->flyingIndex()],
             .name = "feedback_bufer"
         });
 
@@ -683,7 +493,7 @@ int main(int argc, char* argv[]) {
                 u32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
-                .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
+                .globalDataRef = globalBuffers[engine->device()->flyingIndex()]->address(),
                     .meshBuffer = meshBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                     .transformsBuffer = transformsBuffer->address(),
@@ -738,7 +548,7 @@ int main(int argc, char* argv[]) {
                 u64 cameraBuffer;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
-                .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
+                .globalDataRef = globalBuffers[engine->device()->flyingIndex()]->address(),
                 .meshletBuffer = meshletBuffer->address(),
                 .meshletInstanceInputBuffer = meshletInstanceInputBuffer->address(),
                 .meshletInstanceOutputBuffer = meshletInstanceOutputBuffer->address(),
@@ -766,7 +576,7 @@ int main(int argc, char* argv[]) {
             cmd.dispatchWorkgroups();
         });
 
-        if (engine.meshShadingEnabled()) {
+        if (engine->meshShadingEnabled()) {
             auto& geometryPass = renderGraph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
             geometryPass.addIndirectRead(meshletCommandBufferIndex);
             geometryPass.addStorageBufferRead(transformsIndex, canta::PipelineStage::MESH_SHADER);
@@ -789,7 +599,7 @@ int main(int argc, char* argv[]) {
                 auto primitiveBuffer = graph.getBuffer(primitiveBufferIndex);
                 auto cameraBuffer = graph.getBuffer(cameraBufferIndex);
 
-                cmd.bindPipeline(engine.pipelineManager().getPipeline({
+                cmd.bindPipeline(engine->pipelineManager().getPipeline({
                     .fragment = { .module = fragmentShader },
                     .mesh = { .module = meshShader },
                     .rasterState = {
@@ -815,7 +625,7 @@ int main(int argc, char* argv[]) {
                     u64 cameraBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::MESH, Push {
-                    .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
+                    .globalDataRef = globalBuffers[engine->device()->flyingIndex()]->address(),
                         .meshletBuffer = meshletBuffer->address(),
                         .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                         .vertexBuffer = vertexBuffer->address(),
@@ -887,7 +697,7 @@ int main(int argc, char* argv[]) {
                     u64 cameraBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
-                    .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
+                    .globalDataRef = globalBuffers[engine->device()->flyingIndex()]->address(),
                     .meshletBuffer = meshletBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                     .vertexBuffer = vertexBuffer->address(),
@@ -935,7 +745,7 @@ int main(int argc, char* argv[]) {
                     u64 cameraBuffer;
                 };
                 cmd.pushConstants(canta::ShaderStage::VERTEX, Push {
-                    .globalDataRef = globalBuffers[engine.device()->flyingIndex()]->address(),
+                    .globalDataRef = globalBuffers[engine->device()->flyingIndex()]->address(),
                     .meshletBuffer = meshletBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                     .vertexBuffer = vertexBuffer->address(),
@@ -962,22 +772,22 @@ int main(int argc, char* argv[]) {
         renderGraph.compile();
 
         auto waits = std::to_array({
-            { engine.device()->frameSemaphore(), engine.device()->framePrevValue() },
+            { engine->device()->frameSemaphore(), engine->device()->framePrevValue() },
             swapchain->acquireSemaphore()->getPair(),
-            uploadBuffer.timeline().getPair()
+            engine->uploadBuffer().timeline().getPair()
         });
         auto signals = std::to_array({
-            engine.device()->frameSemaphore()->getPair(),
+            engine->device()->frameSemaphore()->getPair(),
             swapchain->presentSemaphore()->getPair()
         });
         renderGraph.execute(waits, signals, true);
 
         swapchain->present();
 
-        milliseconds = engine.device()->endFrame();
+        milliseconds = engine->device()->endFrame();
         dt = milliseconds / 1000.f;
 
     }
-    engine.device()->waitIdle();
+    engine->device()->waitIdle();
     return 0;
 }

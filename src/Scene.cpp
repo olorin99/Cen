@@ -45,8 +45,13 @@ void cen::Scene::prepare() {
     _transformBuffer[flyingIndex]->data(_transforms);
 }
 
-void cen::Scene::addMesh(const GPUMesh &mesh, const ende::math::Mat4f &transform) {
-    _meshes.push_back(mesh);
+void cen::Scene::addMesh(const Mesh &mesh, const ende::math::Mat4f &transform) {
+    _meshes.push_back({
+        .meshletOffset = mesh.meshletOffset,
+        .meshletCount = mesh.meshletCount,
+        .min = mesh.min,
+        .max = mesh.max
+    });
     _transforms.push_back(transform);
     assert(_meshes.size() == _transforms.size());
     _maxMeshlets = std::max(_maxMeshlets, mesh.meshletCount);

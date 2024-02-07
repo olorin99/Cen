@@ -5,6 +5,7 @@
 #include <vector>
 #include <cen.glsl>
 #include <Cen/Engine.h>
+#include <Cen/Model.h>
 
 namespace cen {
 
@@ -18,7 +19,7 @@ namespace cen {
 
         void prepare();
 
-        void addMesh(const GPUMesh& mesh, const ende::math::Mat4f& transform);
+        void addMesh(const Mesh& mesh, const ende::math::Mat4f& transform);
 
 
         auto meshCount() const -> u32 { return _meshes.size(); }
