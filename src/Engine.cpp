@@ -56,9 +56,19 @@ auto cen::Engine::uploadVertexData(std::span<const Vertex> data) -> u32 {
     if (_vertexOffset + data.size() * sizeof(Vertex) >= _vertexBuffer->size()) {
         uploadBuffer().flushStagedData();
         uploadBuffer().wait();
-        _vertexBuffer = device()->createBuffer({
+        auto newBuffer = device()->createBuffer({
             .size = static_cast<u32>(_vertexOffset + data.size() * sizeof(Vertex))
-        }, _vertexBuffer);
+        });
+        device()->immediate([&](canta::CommandBuffer& cmd) {
+            cmd.copyBuffer({
+                .src = _vertexBuffer,
+                .dst = newBuffer,
+                .srcOffset = 0,
+                .dstOffset = 0,
+                .size = _vertexBuffer->size()
+            });
+        });
+        _vertexBuffer = newBuffer;
     }
 
     auto currentOffset = _vertexOffset;
@@ -70,9 +80,19 @@ auto cen::Engine::uploadIndexData(std::span<const u32> data) -> u32 {
     if (_indexOffset + data.size() * sizeof(u32) >= _indexBuffer->size()) {
         uploadBuffer().flushStagedData();
         uploadBuffer().wait();
-        _indexBuffer = device()->createBuffer({
+        auto newBuffer = device()->createBuffer({
             .size = static_cast<u32>(_indexOffset + data.size() * sizeof(u32))
-        }, _indexBuffer);
+        });
+        device()->immediate([&](canta::CommandBuffer& cmd) {
+            cmd.copyBuffer({
+                .src = _indexBuffer,
+                .dst = newBuffer,
+                .srcOffset = 0,
+                .dstOffset = 0,
+                .size = _indexBuffer->size()
+            });
+        });
+        _indexBuffer = newBuffer;
     }
 
     auto currentOffset = _indexOffset;
@@ -84,9 +104,19 @@ auto cen::Engine::uploadPrimitiveData(std::span<const u8> data) -> u32 {
     if (_primitiveOffset + data.size() * sizeof(u8) >= _primitiveBuffer->size()) {
         uploadBuffer().flushStagedData();
         uploadBuffer().wait();
-        _primitiveBuffer = device()->createBuffer({
+        auto newBuffer = device()->createBuffer({
             .size = static_cast<u32>(_primitiveOffset + data.size() * sizeof(u8)) * 2
-        }, _primitiveBuffer);
+        });
+        device()->immediate([&](canta::CommandBuffer& cmd) {
+            cmd.copyBuffer({
+                .src = _primitiveBuffer,
+                .dst = newBuffer,
+                .srcOffset = 0,
+                .dstOffset = 0,
+                .size = _primitiveBuffer->size()
+            });
+        });
+        _primitiveBuffer = newBuffer;
     }
 
     auto currentOffset = _primitiveOffset;
@@ -98,9 +128,19 @@ auto cen::Engine::uploadMeshletData(std::span<const Meshlet> data) -> u32 {
     if (_meshletOffset + data.size() * sizeof(Meshlet) >= _meshletBuffer->size()) {
         uploadBuffer().flushStagedData();
         uploadBuffer().wait();
-        _meshletBuffer = device()->createBuffer({
+        auto newBuffer = device()->createBuffer({
             .size = static_cast<u32>(_meshletOffset + data.size() * sizeof(Meshlet))
-        }, _meshletBuffer);
+        });
+        device()->immediate([&](canta::CommandBuffer& cmd) {
+            cmd.copyBuffer({
+                .src = _meshletBuffer,
+                .dst = newBuffer,
+                .srcOffset = 0,
+                .dstOffset = 0,
+                .size = _meshletBuffer->size()
+            });
+        });
+        _meshletBuffer = newBuffer;
     }
 
     auto currentOffset = _meshletOffset;
