@@ -26,7 +26,7 @@ layout (push_constant) uniform Push {
 
 void main() {
 
-    GPUCamera camera = cameraBuffer.camera;
+    GPUCamera camera = cameraBuffer[globalDataRef.globalData.primaryCamera].camera;
 
     uint meshletIndex = meshletIndexBuffer.indices[gl_VertexIndex];
     uint meshletId = getMeshletID(meshletIndex);

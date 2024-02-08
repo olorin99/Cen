@@ -60,7 +60,7 @@ void main() {
         return;
     }
 
-    GPUCamera camera = cameraBuffer.camera;
+    GPUCamera camera = cameraBuffer[globalDataRef.globalData.primaryCamera].camera;
     MeshletInstance instance = meshletInstanceBuffer.instances[meshletIndex];
     Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
 

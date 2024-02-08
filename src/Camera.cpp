@@ -43,6 +43,11 @@ void cen::Camera::setFar(f32 far) {
     _projection = ende::math::perspective(_fov, _width / _height, _near, _far);
 }
 
+void cen::Camera::setFov(f32 fov) {
+    _fov = fov;
+    _projection = ende::math::perspective(_fov, _width / _height, _near, _far);
+}
+
 auto cen::Camera::gpuCamera() const -> GPUCamera {
     auto planes = _frustum.planes();
     auto corners = frustumCorners();

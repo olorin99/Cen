@@ -7,6 +7,7 @@
 #include <Cen/Engine.h>
 #include <Cen/Model.h>
 #include <Cen/Transform.h>
+#include <Cen/Camera.h>
 
 namespace cen {
 
@@ -44,10 +45,16 @@ namespace cen {
             i32 index = -1;
         };
 
-        auto addMesh(const Mesh& mesh, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
-
-
+        auto addMesh(std::string_view name, const Mesh& mesh, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
         auto getMesh(SceneNode* node) -> GPUMesh&;
+
+        auto addCamera(std::string_view name, const Camera& camera, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
+        auto getCamera(SceneNode* node) -> Camera&;
+        auto getCamera(i32 index) -> Camera&;
+        auto primaryCamera() -> Camera& { return getCamera(_primaryCamera); }
+        auto cullingCamera() -> Camera& { return getCamera(_cullingCamera); }
+        void setPrimaryCamera(SceneNode* node);
+        void setCullingCamera(SceneNode* node);
 
 //    private:
 
@@ -57,9 +64,15 @@ namespace cen {
 
         std::vector<GPUMesh> _meshes = {};
         std::vector<ende::math::Mat4f> _worldTransforms = {};
+        std::vector<GPUCamera> _gpuCameras = {};
+
+        std::vector<Camera> _cameras = {};
+        i32 _primaryCamera = -1;
+        i32 _cullingCamera = -1;
 
         canta::BufferHandle _meshBuffer[canta::FRAMES_IN_FLIGHT] = {};
         canta::BufferHandle _transformBuffer[canta::FRAMES_IN_FLIGHT] = {};
+        canta::BufferHandle _cameraBuffer[canta::FRAMES_IN_FLIGHT] = {};
 
         u32 _maxMeshlets = 0;
         u32 _totalMeshlets = 0;

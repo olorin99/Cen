@@ -64,6 +64,9 @@ namespace cen {
         void setFar(f32 far);
         auto far() const -> f32 { return _far; }
 
+        void setFov(f32 fov);
+        auto fov() const -> f32 { return _fov; }
+
         auto gpuCamera() const -> GPUCamera;
 
         auto frustum() const -> const ende::math::Frustum& { return _frustum; }

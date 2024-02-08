@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
         for (u32 j = 0; j < 30; j++) {
             for (u32 k = 0; k < 1; k++) {
                 for (auto& mesh : model->meshes) {
-                    scene.addMesh(mesh, cen::Transform::create({
+                    scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
                         .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }
                     }));
                 }
@@ -107,18 +107,21 @@ int main(int argc, char* argv[]) {
     });
 
     camera.updateFrustum();
-    auto corners = camera.frustumCorners();
+    scene.addCamera("primary_camera", camera, cen::Transform::create({
+        .position = { 0, 0, 2 },
+        .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180))
+    }));
 
-    std::array<canta::BufferHandle, canta::FRAMES_IN_FLIGHT> cameraBuffers = {};
-    for (auto& buffer : cameraBuffers) {
-        buffer = engine->device()->createBuffer({
-            .size = sizeof(cen::GPUCamera) * 2,
-            .usage = canta::BufferUsage::STORAGE,
-            .type = canta::MemoryType::STAGING,
-            .persistentlyMapped = true,
-            .name = "camera_buffer"
-        });
-    }
+    auto secondaryCamera = cen::Camera::create({
+        .position = { 0, 0, 2 },
+        .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180)),
+        .width = 1920,
+        .height = 1080
+    });
+    scene.addCamera("secondary_camera", secondaryCamera, cen::Transform::create({
+        .position = { 0, 0, 2 },
+        .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180))
+    }));
 
     FeedbackInfo feedbackInfo = {};
     GlobalData globalData = {
@@ -202,9 +205,6 @@ int main(int argc, char* argv[]) {
         .depthFormat = canta::Format::D32_SFLOAT
     });
 
-    bool culling = true;
-    bool numericalStats = true;
-
     f64 milliseconds = 16;
     f64 dt = 1.f / 60;
     bool running = true;
@@ -220,28 +220,28 @@ int main(int argc, char* argv[]) {
         }
 
         {
-            auto cameraPosition = camera.position();
-            auto cameraRotation = camera.rotation().unit();
+            auto cameraPosition = scene.primaryCamera().position();
+            auto cameraRotation = scene.primaryCamera().rotation().unit();
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_W])
-                camera.setPosition(cameraPosition + camera.rotation().front() * dt * 10);
+                scene.primaryCamera().setPosition(cameraPosition + cameraRotation.front() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_S])
-                camera.setPosition(cameraPosition + camera.rotation().back() * dt * 10);
+                scene.primaryCamera().setPosition(cameraPosition + cameraRotation.back() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_A])
-                camera.setPosition(cameraPosition + camera.rotation().left() * dt * 10);
+                scene.primaryCamera().setPosition(cameraPosition + cameraRotation.left() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_D])
-                camera.setPosition(cameraPosition + camera.rotation().right() * dt * 10);
+                scene.primaryCamera().setPosition(cameraPosition + cameraRotation.right() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_LSHIFT])
-                camera.setPosition(cameraPosition + camera.rotation().down() * dt * 10);
+                scene.primaryCamera().setPosition(cameraPosition + cameraRotation.down() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_SPACE])
-                camera.setPosition(cameraPosition + camera.rotation().up() * dt * 10);
+                scene.primaryCamera().setPosition(cameraPosition + cameraRotation.up() * dt * 10);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_LEFT])
-                camera.setRotation(ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(90) * dt) * cameraRotation);
+                scene.primaryCamera().setRotation(ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(90) * dt) * cameraRotation);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_RIGHT])
-                camera.setRotation(ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(-90) * dt) * cameraRotation);
+                scene.primaryCamera().setRotation(ende::math::Quaternion({ 0, 1, 0 }, ende::math::rad(-90) * dt) * cameraRotation);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_UP])
-                camera.setRotation(ende::math::Quaternion(cameraRotation.right(), ende::math::rad(-45) * dt) * cameraRotation);
+                scene.primaryCamera().setRotation(ende::math::Quaternion(cameraRotation.right(), ende::math::rad(-45) * dt) * cameraRotation);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_DOWN])
-                camera.setRotation(ende::math::Quaternion(cameraRotation.right(), ende::math::rad(45) * dt) * cameraRotation);
+                scene.primaryCamera().setRotation(ende::math::Quaternion(cameraRotation.right(), ende::math::rad(45) * dt) * cameraRotation);
         }
 
 
@@ -250,15 +250,11 @@ int main(int argc, char* argv[]) {
         scene.prepare();
         std::memcpy(&feedbackInfo, feedbackBuffers[engine->device()->flyingIndex()]->mapped().address(), sizeof(FeedbackInfo));
         std::memset(feedbackBuffers[engine->device()->flyingIndex()]->mapped().address(), 0, sizeof(FeedbackInfo));
+        globalData.cullingCamera = 0;
+        globalData.primaryCamera = 1;
         globalData.feedbackInfoRef = feedbackBuffers[engine->device()->flyingIndex()]->address();
         globalBuffers[engine->device()->flyingIndex()]->data(globalData);
         renderGraph.reset();
-
-        camera.updateFrustum();
-        auto gpuCamera = camera.gpuCamera();
-        cameraBuffers[engine->device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)));
-        if (culling)
-            cameraBuffers[engine->device()->flyingIndex()]->data(std::span<const u8>(reinterpret_cast<const u8*>(&gpuCamera), sizeof(gpuCamera)), sizeof(gpuCamera));
 
         statisticsWindow.dt = dt;
         statisticsWindow.milliseconds = milliseconds;
@@ -304,7 +300,8 @@ int main(int argc, char* argv[]) {
             .name = "meshlet_command_buffer"
         });
         auto cameraBufferIndex = renderGraph.addBuffer({
-            .handle = cameraBuffers[engine->device()->flyingIndex()],
+//            .handle = cameraBuffers[engine->device()->flyingIndex()],
+            .handle = scene._cameraBuffer[engine->device()->flyingIndex()],
             .name = "camera_buffer"
         });
         auto transformsIndex = renderGraph.addBuffer({

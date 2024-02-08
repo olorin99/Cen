@@ -140,6 +140,8 @@ struct GlobalData {
     uint maxMeshletCount;
     uint maxIndirectIndexCount;
     uvec2 screenSize;
+    int cullingCamera;
+    int primaryCamera;
     FeedbackInfoRef feedbackInfoRef;
 };
 #ifndef __cplusplus
