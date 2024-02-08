@@ -25,7 +25,11 @@ add_library(Cen
         src/ui/SettingsWindow.cpp
         include/Cen/ui/SettingsWindow.h
         src/ui/StatisticsWindow.cpp
-        include/Cen/ui/StatisticsWindow.h)
+        include/Cen/ui/StatisticsWindow.h
+        src/ui/SceneWindow.cpp
+        include/Cen/ui/SceneWindow.h
+        src/Transform.cpp
+        include/Cen/Transform.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)

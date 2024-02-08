@@ -11,6 +11,7 @@
 #include <Cen/ui/GuiWorkspace.h>
 #include <Cen/ui/SettingsWindow.h>
 #include <Cen/ui/StatisticsWindow.h>
+#include <Cen/ui/SceneWindow.h>
 
 int main(int argc, char* argv[]) {
 
@@ -53,10 +54,15 @@ int main(int argc, char* argv[]) {
     cen::ui::StatisticsWindow statisticsWindow = {};
     statisticsWindow.engine = engine.get();
     statisticsWindow.renderGraph = &renderGraph;
-    settingsWindow.name = "Statistics";
+    statisticsWindow.name = "Statistics";
+
+    cen::ui::SceneWindow sceneWindow = {};
+    sceneWindow.scene = &scene;
+    sceneWindow.name = "Scene";
 
     guiWorkspace.addWindow(&settingsWindow);
     guiWorkspace.addWindow(&statisticsWindow);
+    guiWorkspace.addWindow(&sceneWindow);
 
     auto model = engine->assetManager().loadModel(gltfPath);
 
@@ -65,7 +71,9 @@ int main(int argc, char* argv[]) {
         for (u32 j = 0; j < 30; j++) {
             for (u32 k = 0; k < 1; k++) {
                 for (auto& mesh : model->meshes) {
-                    scene.addMesh(mesh, ende::math::translation<4, f32>({ static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }));
+                    scene.addMesh(mesh, cen::Transform::create({
+                        .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }
+                    }));
                 }
             }
         }

@@ -6,6 +6,7 @@
 #include <cen.glsl>
 #include <Cen/Engine.h>
 #include <Cen/Model.h>
+#include <Cen/Transform.h>
 
 namespace cen {
 
@@ -35,15 +36,18 @@ namespace cen {
             virtual ~SceneNode() = default;
 
             NodeType type = NodeType::NONE;
-            ende::math::Mat4f transform = ende::math::identity<4, f32>();
+            Transform transform = {};
+            ende::math::Mat4f worldTransform = {};
             std::string name = {};
             SceneNode* parent = nullptr;
             std::vector<std::unique_ptr<SceneNode>> children = {};
             i32 index = -1;
         };
 
-        auto addMesh(const Mesh& mesh, const ende::math::Mat4f& transform, SceneNode* parent = nullptr) -> SceneNode*;
+        auto addMesh(const Mesh& mesh, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
 
+
+        auto getMesh(SceneNode* node) -> GPUMesh&;
 
 //    private:
 
@@ -52,7 +56,7 @@ namespace cen {
         std::unique_ptr<SceneNode> _rootNode = nullptr;
 
         std::vector<GPUMesh> _meshes = {};
-        std::vector<ende::math::Mat4f> _transforms = {};
+        std::vector<ende::math::Mat4f> _worldTransforms = {};
 
         canta::BufferHandle _meshBuffer[canta::FRAMES_IN_FLIGHT] = {};
         canta::BufferHandle _transformBuffer[canta::FRAMES_IN_FLIGHT] = {};
