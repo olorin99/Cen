@@ -85,19 +85,6 @@ void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene) {
                     ImGui::TreePop();
                 }
                 break;
-            case cen::Scene::NodeType::CAMERA:
-                if (ImGui::TreeNode(child->name.c_str())) {
-                    nodeTypeCamera(child.get(), scene);
-                    child->transform.setPosition(scene->getCamera(child.get()).position());
-                    child->transform.setRotation(scene->getCamera(child.get()).rotation(a));
-                    if (renderTransform(child.get())) {
-                        scene->getCamera(child.get()).setPosition(child->transform.position());
-                        scene->getCamera(child.get()).setRotation(child->transform.rotation());
-                    }
-                    traverseSceneNode(child.get(), scene);
-                    ImGui::TreePop();
-                }
-                break;
         }
         ImGui::PopID();
     }
