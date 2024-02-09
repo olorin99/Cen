@@ -89,7 +89,7 @@ void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene) {
                 if (ImGui::TreeNode(child->name.c_str())) {
                     nodeTypeCamera(child.get(), scene);
                     child->transform.setPosition(scene->getCamera(child.get()).position());
-                    child->transform.setRotation(scene->getCamera(child.get()).rotation(a));
+                    child->transform.setRotation(scene->getCamera(child.get()).rotation());
                     if (renderTransform(child.get())) {
                         scene->getCamera(child.get()).setPosition(child->transform.position());
                         scene->getCamera(child.get()).setRotation(child->transform.rotation());

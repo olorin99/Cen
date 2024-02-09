@@ -64,6 +64,8 @@ namespace cen {
 
         bool _meshShadingEnabled = true;
 
+        std::mutex _mutex = {};
+
     };
 
 }

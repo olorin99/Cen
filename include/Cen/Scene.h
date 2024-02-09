@@ -8,6 +8,7 @@
 #include <Cen/Model.h>
 #include <Cen/Transform.h>
 #include <Cen/Camera.h>
+#include <mutex>
 
 namespace cen {
 
@@ -19,9 +20,12 @@ namespace cen {
         };
         static auto create(CreateInfo info) -> Scene;
 
+//        Scene(Scene&& rhs) noexcept;
+//        auto operator=(Scene&& rhs) noexcept -> Scene&;
+
         void prepare();
 
-        auto meshCount() const -> u32 { return _meshes.size(); }
+        auto meshCount() const -> u32 { return _meshCount; }
         auto maxMeshlets() const -> u32 { return _maxMeshlets; }
         auto totalMeshlets() const -> u32 { return _totalMeshlets; }
         auto totalPrimtives() const -> u32 { return _totalPrimitives; }
@@ -44,6 +48,10 @@ namespace cen {
             std::vector<std::unique_ptr<SceneNode>> children = {};
             i32 index = -1;
         };
+
+        auto addNode(std::string_view name, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
+
+        auto addModel(std::string_view name, const Model& model, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
 
         auto addMesh(std::string_view name, const Mesh& mesh, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
         auto getMesh(SceneNode* node) -> GPUMesh&;
@@ -74,9 +82,12 @@ namespace cen {
         canta::BufferHandle _transformBuffer[canta::FRAMES_IN_FLIGHT] = {};
         canta::BufferHandle _cameraBuffer[canta::FRAMES_IN_FLIGHT] = {};
 
+        u32 _meshCount = 0;
         u32 _maxMeshlets = 0;
         u32 _totalMeshlets = 0;
         u32 _totalPrimitives = 0;
+
+        std::unique_ptr<std::mutex> _mutex = nullptr;
 
     };
 

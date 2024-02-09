@@ -14,8 +14,6 @@ layout (push_constant) uniform Push {
     MeshletInstanceBuffer meshletInstanceBuffer;
     TransformsBuffer transformsBuffer;
     CameraBuffer cameraBuffer;
-    uint meshCount;
-    uint padding;
 };
 
 bool frustumCheck(vec3 pos, float radius) {
@@ -35,29 +33,23 @@ void main() {
     uint threadIndex = gl_GlobalInvocationID.x;
     if (threadIndex >= globalDataRef.globalData.maxMeshCount)
         return;
-    if (threadIndex == 0) {
-        meshletInstanceBuffer.count = 0;
-    }
-    barrier();
 
     bool visible = false;
-    if (threadIndex < meshCount) {
-        GPUMesh mesh = meshBuffer.meshes[threadIndex];
-        vec3 center = (mesh.max.xyz + mesh.min.xyz) * 0.5;
-        center = (transformsBuffer.transforms[threadIndex] * vec4(center, 1.0)).xyz;
-        vec3 halfExtent = (mesh.max.xyz - mesh.min.xyz) * 0.5;
-        float radius = length(halfExtent);
-        visible = frustumCheck(center, radius);
-        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshesTotal, 1);
-        if (visible) {
-            uint index = atomicAdd(meshletInstanceBuffer.count, mesh.meshletCount);
-            atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshesDrawn, 1);
-            for (uint i = 0; i < mesh.meshletCount; i++) {
-                MeshletInstance instance;
-                instance.meshId = threadIndex;
-                instance.meshletId = mesh.meshletOffset + i;
-                meshletInstanceBuffer.instances[index + i] = instance;
-            }
+    GPUMesh mesh = meshBuffer.meshes[threadIndex];
+    vec3 center = (mesh.max.xyz + mesh.min.xyz) * 0.5;
+    center = (transformsBuffer.transforms[threadIndex] * vec4(center, 1.0)).xyz;
+    vec3 halfExtent = (mesh.max.xyz - mesh.min.xyz) * 0.5;
+    float radius = length(halfExtent);
+    visible = frustumCheck(center, radius);
+    atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshesTotal, 1);
+    if (visible) {
+        uint index = atomicAdd(meshletInstanceBuffer.count, mesh.meshletCount);
+        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshesDrawn, 1);
+        for (uint i = 0; i < mesh.meshletCount; i++) {
+            MeshletInstance instance;
+            instance.meshId = threadIndex;
+            instance.meshletId = mesh.meshletOffset + i;
+            meshletInstanceBuffer.instances[index + i] = instance;
         }
     }
 }

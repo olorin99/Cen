@@ -34,10 +34,6 @@ void main() {
     uint threadIndex = gl_GlobalInvocationID.x;
     if (threadIndex >= globalDataRef.globalData.maxMeshletCount)
         return;
-    if (threadIndex == 0) {
-        meshletInstanceOutputBuffer.count = 0;
-    }
-    barrier();
 
     bool visible = false;
     if (threadIndex < meshletInstanceInputBuffer.count) {

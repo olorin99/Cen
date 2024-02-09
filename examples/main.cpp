@@ -13,6 +13,8 @@
 #include <Cen/ui/StatisticsWindow.h>
 #include <Cen/ui/SceneWindow.h>
 
+#include <Ende/thread/ThreadPool.h>
+
 int main(int argc, char* argv[]) {
 
     std::filesystem::path gltfPath = {};
@@ -64,11 +66,19 @@ int main(int argc, char* argv[]) {
     guiWorkspace.addWindow(&statisticsWindow);
     guiWorkspace.addWindow(&sceneWindow);
 
-    auto model = engine->assetManager().loadModel(gltfPath);
+    ende::thread::ThreadPool threadPool;
 
+    cen::Model* model = nullptr;
+    threadPool.addJob([&engine, &model, gltfPath] (u64 id) {
+        model = engine->assetManager().loadModel(gltfPath);
+    });
+
+//    auto model = engine->assetManager().loadModel(gltfPath);
+
+    threadPool.wait();
     f32 scale = 4;
-    for (u32 i = 0; i < 30; i++) {
-        for (u32 j = 0; j < 30; j++) {
+    for (u32 i = 0; i < 2; i++) {
+        for (u32 j = 0; j < 2; j++) {
             for (u32 k = 0; k < 1; k++) {
                 for (auto& mesh : model->meshes) {
                     scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
@@ -215,6 +225,17 @@ int main(int argc, char* argv[]) {
                 case SDL_QUIT:
                     running = false;
                     break;
+                case SDL_DROPFILE:
+                    char* droppedFile = event.drop.file;
+                    std::filesystem::path assetPath = droppedFile;
+                    threadPool.addJob([&engine, &scene, &model, assetPath] (u64 id) {
+                        model = engine->assetManager().loadModel(assetPath);
+                        engine->uploadBuffer().flushStagedData().wait();
+                        if (!model) return;
+                        scene.addModel(assetPath.string(), *model, cen::Transform::create({}));
+                    });
+                    SDL_free(droppedFile);
+                    break;
             }
             guiWorkspace.context().processEvent(&event);
         }
@@ -247,6 +268,7 @@ int main(int argc, char* argv[]) {
 
         engine->device()->beginFrame();
         engine->device()->gc();
+        globalData.maxMeshCount = scene.meshCount();
         scene.prepare();
         std::memcpy(&feedbackInfo, feedbackBuffers[engine->device()->flyingIndex()]->mapped().address(), sizeof(FeedbackInfo));
         std::memset(feedbackBuffers[engine->device()->flyingIndex()]->mapped().address(), 0, sizeof(FeedbackInfo));
@@ -319,7 +341,20 @@ int main(int argc, char* argv[]) {
             .name = "feedback_bufer"
         });
 
+        auto& clearMeshPass = renderGraph.addPass("clear_mesh", canta::RenderPass::Type::TRANSFER);
+        auto meshletInstanceBufferAlias = renderGraph.addAlias(meshletInstanceBufferIndex);
+        auto meshletInstanceBuffer2Alias = renderGraph.addAlias(meshletInstanceBuffer2Index);
+        clearMeshPass.addTransferWrite(meshletInstanceBufferAlias);
+        clearMeshPass.addTransferWrite(meshletInstanceBuffer2Alias);
+        clearMeshPass.setExecuteFunction([meshletInstanceBufferAlias, meshletInstanceBuffer2Alias] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            auto meshletInstanceBuffer = graph.getBuffer(meshletInstanceBufferAlias);
+            auto meshletInstanceBuffer2 = graph.getBuffer(meshletInstanceBuffer2Alias);
+            cmd.clearBuffer(meshletInstanceBuffer, 0, 0, sizeof(u32));
+            cmd.clearBuffer(meshletInstanceBuffer2, 0, 0, sizeof(u32));
+        });
+
         auto& cullMeshPass = renderGraph.addPass("cull_meshes", canta::RenderPass::Type::COMPUTE);
+        cullMeshPass.addStorageBufferRead(meshletInstanceBufferAlias, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshPass.addStorageBufferRead(meshBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshPass.addStorageBufferRead(transformsIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
@@ -339,16 +374,13 @@ int main(int argc, char* argv[]) {
                 u64 meshletInstanceBuffer;
                 u64 transformsBuffer;
                 u64 cameraBuffer;
-                u32 meshCount;
-                u32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                 .globalDataRef = globalBuffers[engine->device()->flyingIndex()]->address(),
                     .meshBuffer = meshBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                     .transformsBuffer = transformsBuffer->address(),
-                    .cameraBuffer = cameraBuffer->address(),
-                    .meshCount = static_cast<u32>(scene.meshCount())
+                    .cameraBuffer = cameraBuffer->address()
             });
             cmd.dispatchThreads(scene.meshCount());
         });
@@ -374,6 +406,7 @@ int main(int argc, char* argv[]) {
 
         auto& cullMeshletsPass = renderGraph.addPass("cull_meshlets", canta::RenderPass::Type::COMPUTE);
         cullMeshletsPass.addIndirectRead(meshCommandAlias);
+        cullMeshletsPass.addStorageBufferRead(meshletInstanceBuffer2Alias, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshletsPass.addStorageBufferRead(transformsIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshletsPass.addStorageBufferRead(meshletBufferIndex, canta::PipelineStage::COMPUTE_SHADER);
         cullMeshletsPass.addStorageBufferRead(cameraBufferIndex, canta::PipelineStage::COMPUTE_SHADER);

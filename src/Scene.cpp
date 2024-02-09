@@ -35,6 +35,8 @@ auto cen::Scene::create(cen::Scene::CreateInfo info) -> Scene {
         });
     }
 
+    scene._mutex = std::make_unique<std::mutex>();
+
     return scene;
 }
 
@@ -54,6 +56,7 @@ void traverseNode(cen::Scene::SceneNode* node, ende::math::Mat4f worldTransform,
 }
 
 void cen::Scene::prepare() {
+    std::unique_lock lock(*_mutex);
     u32 flyingIndex = _engine->device()->flyingIndex();
     if (_meshBuffer[flyingIndex]->size() < _meshes.size() * sizeof(GPUMesh)) {
         _meshBuffer[flyingIndex] = _engine->device()->createBuffer({
@@ -90,9 +93,40 @@ void cen::Scene::prepare() {
         }, _cameraBuffer[flyingIndex]);
     }
     _cameraBuffer[flyingIndex]->data(_gpuCameras);
+
+    _meshCount = _meshes.size();
+}
+
+auto cen::Scene::addNode(std::string_view name, const cen::Transform &transform, cen::Scene::SceneNode *parent) -> SceneNode * {
+    std::unique_lock lock(*_mutex);
+    auto node = std::make_unique<SceneNode>();
+    node->type = NodeType::NONE;
+    node->transform = transform;
+    node->worldTransform = transform.local();
+    node->name = name;
+    node->index = -1;
+
+    if (parent) {
+        node->parent = parent;
+        parent->children.push_back(std::move(node));
+        return parent->children.back().get();
+    } else {
+        node->parent = _rootNode.get();
+        _rootNode->children.push_back(std::move(node));
+        return _rootNode->children.back().get();
+    }
+}
+
+auto cen::Scene::addModel(std::string_view name, const cen::Model &model, const cen::Transform &transform, cen::Scene::SceneNode *parent) -> SceneNode * {
+    auto node = addNode(name, transform, parent);
+    for (auto& mesh : model.meshes) {
+        addMesh(name, mesh, Transform::create({}), node);
+    }
+    return node;
 }
 
 auto cen::Scene::addMesh(std::string_view name, const cen::Mesh &mesh, const Transform &transform, cen::Scene::SceneNode *parent) -> SceneNode* {
+    std::unique_lock lock(*_mutex);
     auto index = _meshes.size();
     _meshes.push_back({
         .meshletOffset = mesh.meshletOffset,
@@ -127,6 +161,7 @@ auto cen::Scene::getMesh(cen::Scene::SceneNode *node) -> GPUMesh & {
 }
 
 auto cen::Scene::addCamera(std::string_view name, const cen::Camera &camera, const cen::Transform &transform, cen::Scene::SceneNode *parent) -> SceneNode * {
+    std::unique_lock lock(*_mutex);
     auto index = _cameras.size();
     _cameras.push_back(camera);
     if (_primaryCamera < 0)

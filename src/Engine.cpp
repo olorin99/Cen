@@ -53,9 +53,9 @@ auto cen::Engine::setMeshShadingEnabled(bool enabled) -> bool {
 }
 
 auto cen::Engine::uploadVertexData(std::span<const Vertex> data) -> u32 {
+    std::unique_lock lock(_mutex);
     if (_vertexOffset + data.size() * sizeof(Vertex) >= _vertexBuffer->size()) {
-        uploadBuffer().flushStagedData();
-        uploadBuffer().wait();
+        uploadBuffer().flushStagedData().wait();
         auto newBuffer = device()->createBuffer({
             .size = static_cast<u32>(_vertexOffset + data.size() * sizeof(Vertex))
         });
@@ -77,9 +77,9 @@ auto cen::Engine::uploadVertexData(std::span<const Vertex> data) -> u32 {
 }
 
 auto cen::Engine::uploadIndexData(std::span<const u32> data) -> u32 {
+    std::unique_lock lock(_mutex);
     if (_indexOffset + data.size() * sizeof(u32) >= _indexBuffer->size()) {
-        uploadBuffer().flushStagedData();
-        uploadBuffer().wait();
+        uploadBuffer().flushStagedData().wait();
         auto newBuffer = device()->createBuffer({
             .size = static_cast<u32>(_indexOffset + data.size() * sizeof(u32))
         });
@@ -101,9 +101,9 @@ auto cen::Engine::uploadIndexData(std::span<const u32> data) -> u32 {
 }
 
 auto cen::Engine::uploadPrimitiveData(std::span<const u8> data) -> u32 {
+    std::unique_lock lock(_mutex);
     if (_primitiveOffset + data.size() * sizeof(u8) >= _primitiveBuffer->size()) {
-        uploadBuffer().flushStagedData();
-        uploadBuffer().wait();
+        uploadBuffer().flushStagedData().wait();
         auto newBuffer = device()->createBuffer({
             .size = static_cast<u32>(_primitiveOffset + data.size() * sizeof(u8)) * 2
         });
@@ -125,9 +125,9 @@ auto cen::Engine::uploadPrimitiveData(std::span<const u8> data) -> u32 {
 }
 
 auto cen::Engine::uploadMeshletData(std::span<const Meshlet> data) -> u32 {
+    std::unique_lock lock(_mutex);
     if (_meshletOffset + data.size() * sizeof(Meshlet) >= _meshletBuffer->size()) {
-        uploadBuffer().flushStagedData();
-        uploadBuffer().wait();
+        uploadBuffer().flushStagedData().wait();
         auto newBuffer = device()->createBuffer({
             .size = static_cast<u32>(_meshletOffset + data.size() * sizeof(Meshlet))
         });
