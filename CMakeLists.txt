@@ -29,7 +29,9 @@ add_library(Cen
         src/ui/SceneWindow.cpp
         include/Cen/ui/SceneWindow.h
         src/Transform.cpp
-        include/Cen/Transform.h)
+        include/Cen/Transform.h
+        src/Renderer.cpp
+        src/Renderer.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)
