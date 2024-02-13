@@ -69,27 +69,6 @@ int main(int argc, char* argv[]) {
     guiWorkspace.addWindow(&statisticsWindow);
     guiWorkspace.addWindow(&sceneWindow);
 
-    ende::thread::ThreadPool threadPool;
-
-    cen::Model* model = nullptr;
-    threadPool.addJob([&engine, &model, gltfPath] (u64 id) {
-        model = engine->assetManager().loadModel(gltfPath);
-    });
-
-    threadPool.wait();
-    f32 scale = 4;
-    for (u32 i = 0; i < 2; i++) {
-        for (u32 j = 0; j < 2; j++) {
-            for (u32 k = 0; k < 1; k++) {
-                for (auto& mesh : model->meshes) {
-                    scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
-                        .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }
-                    }));
-                }
-            }
-        }
-    }
-
     auto camera = cen::Camera::create({
         .position = { 0, 0, 2 },
         .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180)),
@@ -113,6 +92,27 @@ int main(int argc, char* argv[]) {
         .position = { 0, 0, 2 },
         .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180))
     }));
+
+    ende::thread::ThreadPool threadPool;
+
+    cen::Model* model = nullptr;
+    threadPool.addJob([&engine, &model, gltfPath] (u64 id) {
+        model = engine->assetManager().loadModel(gltfPath);
+    });
+
+    threadPool.wait();
+    f32 scale = 4;
+    for (u32 i = 0; i < 30; i++) {
+        for (u32 j = 0; j < 30; j++) {
+            for (u32 k = 0; k < 1; k++) {
+                for (auto& mesh : model->meshes) {
+                    scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
+                        .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }
+                    }));
+                }
+            }
+        }
+    }
 
     engine->uploadBuffer().flushStagedData();
     engine->uploadBuffer().wait();
@@ -171,6 +171,7 @@ int main(int argc, char* argv[]) {
 
         engine->device()->beginFrame();
         engine->device()->gc();
+        engine->pipelineManager().reloadAll();
         scene.prepare();
 
         statisticsWindow.dt = dt;

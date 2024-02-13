@@ -31,7 +31,11 @@ add_library(Cen
         src/Transform.cpp
         include/Cen/Transform.h
         src/Renderer.cpp
-        src/Renderer.h)
+        include/Cen/Renderer.h
+        src/passes/MeshletDrawPass.cpp
+        src/passes/MeshletDrawPass.h
+        src/passes/MeshletsCullPass.cpp
+        src/passes/MeshletsCullPass.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)

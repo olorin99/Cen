@@ -42,6 +42,10 @@ void cen::ui::SettingsWindow::render() {
                     break;
             }
         }
+
+        if (ImGui::Button("Reload Pipelines")) {
+            engine->pipelineManager().reloadAll(true);
+        }
     }
     ImGui::End();
 }
