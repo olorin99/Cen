@@ -13,6 +13,7 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
     renderer._engine = info.engine;
     renderer._renderGraph = canta::RenderGraph::create({
         .device = info.engine->device(),
+        .timingMode = canta::RenderGraph::TimingMode::PER_GROUP,
         .name = "RenderGraph"
     });
 
@@ -283,7 +284,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
 
 
     if (_renderSettings.mousePick) {
-        auto& mousePickPass = _renderGraph.addPass("mouse_pick", canta::RenderPass::Type::COMPUTE);
+        auto& mousePickPass = _renderGraph.addPass("mouse_pick", canta::PassType::COMPUTE);
 
         mousePickPass.addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER);
         mousePickPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER);
@@ -326,7 +327,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     if (guiWorkspace) {
         auto uiSwapchainIndex = _renderGraph.addAlias(swapchainResource);
 
-        auto& uiPass = _renderGraph.addPass("ui", canta::RenderPass::Type::GRAPHICS);
+        auto& uiPass = _renderGraph.addPass("ui", canta::PassType::GRAPHICS);
 
         uiPass.addColourRead(swapchainResource);
 

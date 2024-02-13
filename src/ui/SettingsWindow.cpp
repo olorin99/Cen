@@ -16,9 +16,21 @@ void cen::ui::SettingsWindow::render() {
         auto timingEnabled = renderer->renderGraph().timingEnabled();
         if (ImGui::Checkbox("RenderGraph Timing", &timingEnabled))
             renderer->renderGraph().setTimingEnabled(timingEnabled);
-        auto individualTiming = renderer->renderGraph().individualTiming();
-        if (ImGui::Checkbox("RenderGraph Per Pass Timing", &individualTiming))
-            renderer->renderGraph().setIndividualTiming(individualTiming);
+        const char* timingModes[] = { "PER_PASS", "PER_GROUP", "SINGLE" };
+        static int timingModeIndex = 0;
+        if (ImGui::Combo("TimingMode", &timingModeIndex, timingModes, 3)) {
+            switch (timingModeIndex) {
+                case 0:
+                    renderer->renderGraph().setTimingMode(canta::RenderGraph::TimingMode::PER_PASS);
+                    break;
+                case 1:
+                    renderer->renderGraph().setTimingMode(canta::RenderGraph::TimingMode::PER_GROUP);
+                    break;
+                case 2:
+                    renderer->renderGraph().setTimingMode(canta::RenderGraph::TimingMode::SINGLE);
+                    break;
+            }
+        }
         auto pipelineStatsEnabled = renderer->renderGraph().pipelineStatisticsEnabled();
         if (ImGui::Checkbox("RenderGraph PiplelineStats", &pipelineStatsEnabled))
             renderer->renderGraph().setPipelineStatisticsEnabled(pipelineStatsEnabled);

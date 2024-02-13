@@ -1,7 +1,7 @@
 #include "DebugPasses.h"
 
 auto cen::passes::debugVisibilityBuffer(canta::RenderGraph &graph, cen::passes::VisibilityDebugParams params) -> canta::RenderPass& {
-    auto& debugVisibilityBufferpass = graph.addPass(params.name, canta::RenderPass::Type::COMPUTE);
+    auto& debugVisibilityBufferpass = graph.addPass(params.name, canta::PassType::COMPUTE);
 
     debugVisibilityBufferpass.addStorageImageRead(params.visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER);
     debugVisibilityBufferpass.addStorageImageWrite(params.backbuffer, canta::PipelineStage::COMPUTE_SHADER);

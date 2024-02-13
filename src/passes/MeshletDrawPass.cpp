@@ -1,8 +1,11 @@
 #include "MeshletDrawPass.h"
+#include <Ende/util/colour.h>
 
 void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshletsParams params) {
+    auto drawGroup = graph.getGroup("draw_meshlets", ende::util::rgb(63, 7, 91));
+
     if (params.useMeshShading) {
-        auto& geometryPass = graph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
+        auto& geometryPass = graph.addPass("geometry", canta::PassType::GRAPHICS, drawGroup);
 
         geometryPass.addIndirectRead(params.command);
 
@@ -65,7 +68,7 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
             .name = "draw_commands_buffer"
         });
 
-        auto& clearPass = graph.addPass("clear", canta::RenderPass::Type::TRANSFER);
+        auto& clearPass = graph.addPass("clear", canta::PassType::TRANSFER, drawGroup);
 
         auto outputIndicesAlias = graph.addAlias(outputIndicesIndex);
         auto drawCommandsAlias = graph.addAlias(drawCommandsIndex);
@@ -80,7 +83,7 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
             cmd.clearBuffer(drawCommandBuffer);
         });
 
-        auto& outputIndexBufferPass = graph.addPass("output_index_buffer", canta::RenderPass::Type::COMPUTE);
+        auto& outputIndexBufferPass = graph.addPass("output_index_buffer", canta::PassType::COMPUTE, drawGroup);
 
         outputIndexBufferPass.addIndirectRead(params.command);
         outputIndexBufferPass.addStorageBufferRead(params.globalBuffer, canta::PipelineStage::COMPUTE_SHADER);
@@ -140,7 +143,7 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
             cmd.dispatchIndirect(command, 0);
         });
 
-        auto& geometryPass = graph.addPass("geometry", canta::RenderPass::Type::GRAPHICS);
+        auto& geometryPass = graph.addPass("geometry", canta::PassType::GRAPHICS, drawGroup);
 
         geometryPass.addIndirectRead(drawCommandsIndex);
         geometryPass.addStorageBufferRead(params.globalBuffer, canta::PipelineStage::VERTEX_SHADER);
