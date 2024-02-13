@@ -165,6 +165,16 @@ int main(int argc, char* argv[]) {
         }
 
 
+        i32 mouseX = 0;
+        i32 mouseY = 0;
+        auto mouseState = SDL_GetMouseState(&mouseX, &mouseY);
+        if (mouseState == SDL_BUTTON_LEFT) {
+            renderer.renderSettings().mousePick = true;
+            renderer.renderSettings().mouseX = mouseX;
+            renderer.renderSettings().mouseY = mouseY;
+        } else
+            renderer.renderSettings().mousePick = false;
+
         engine->device()->beginFrame();
         engine->device()->gc();
         engine->pipelineManager().reloadAll();

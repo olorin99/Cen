@@ -126,6 +126,9 @@ struct FeedbackInfo {
     uint meshletsDrawn;
     uint meshletsTotal;
     uint trianglesDrawn;
+    uint meshId;
+    uint meshletId;
+    uint primitiveId;
 };
 #ifndef __cplusplus
 layout (scalar, buffer_reference, buffer_reference_align = 4) buffer FeedbackInfoRef {

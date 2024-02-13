@@ -282,6 +282,44 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     }
 
 
+    if (_renderSettings.mousePick) {
+        auto& mousePickPass = _renderGraph.addPass("mouse_pick", canta::RenderPass::Type::COMPUTE);
+
+        mousePickPass.addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER);
+        mousePickPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER);
+        mousePickPass.addStorageImageWrite(backbuffer, canta::PipelineStage::COMPUTE_SHADER);
+
+        mousePickPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            auto visibilityBufferImage = graph.getImage(visibilityBuffer);
+            auto globalBuffer = graph.getBuffer(globalBufferResource);
+            auto meshletInstanceBuffer = graph.getBuffer(meshletCullingOutputResource);
+
+            cmd.bindPipeline(_engine->pipelineManager().getPipeline({
+                .compute = { .module = _engine->pipelineManager().getShader({
+                    .path = "util/mouse_pick.comp",
+                    .stage = canta::ShaderStage::COMPUTE
+                })}
+            }));
+
+            struct Push {
+                u64 globalBuffer;
+                u64 meshletInstancesBuffer;
+                i32 visibilityBuffer;
+                i32 mouseX;
+                i32 mouseY;
+                i32 padding;
+            };
+            cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                .globalBuffer = globalBuffer->address(),
+                .meshletInstancesBuffer = meshletInstanceBuffer->address(),
+                .visibilityBuffer = visibilityBufferImage.index(),
+                .mouseX = _renderSettings.mouseX,
+                .mouseY = _renderSettings.mouseY
+            });
+            cmd.dispatchWorkgroups();
+        });
+    }
+
 
     _renderGraph.addBlitPass("backbuffer_to_swapchain", backbuffer, swapchainResource);
 

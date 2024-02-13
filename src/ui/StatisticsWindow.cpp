@@ -82,6 +82,11 @@ void cen::ui::StatisticsWindow::render() {
                 ImGui::Text("Culled meshlet ratio: %.0f%%", culledMeshletRatio);
                 ImGui::Text("Drawn Triangles %s", numberToWord(feedbackInfo.trianglesDrawn).c_str());
             }
+
+            ImGui::Text("MeshId: %d", feedbackInfo.meshId);
+            ImGui::Text("MeshletId: %d", feedbackInfo.meshletId);
+            ImGui::Text("PrimitiveId: %d", feedbackInfo.primitiveId);
+
             ImGui::TreePop();
         }
 

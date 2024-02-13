@@ -43,6 +43,10 @@ namespace cen {
             bool debugMeshletId = false;
             bool debugPrimitiveId = false;
             bool debugMeshId = false;
+
+            bool mousePick = false;
+            i32 mouseX = 0;
+            i32 mouseY = 0;
         };
         auto renderSettings() -> RenderSettings& { return _renderSettings; }
 

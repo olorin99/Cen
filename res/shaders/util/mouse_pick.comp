@@ -1,0 +1,38 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference2 : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
+
+#include "canta.glsl"
+#include "cen.glsl"
+
+layout (rg32ui, set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform readonly uimage2D storageImages[];
+
+layout (push_constant) uniform PushData {
+    GlobalDataRef globalDataRef;
+    MeshletInstanceBuffer meshletInstanceBuffer;
+    int visibilityImageIndex;
+    int mouseX;
+    int mouseY;
+    int padding;
+};
+
+layout (local_size_x = 1) in;
+void main() {
+
+    ivec2 mouseCoords = ivec2(mouseX, mouseY);
+
+    uint visibility = imageLoad(storageImages[visibilityImageIndex], mouseCoords).r;
+    uint meshletId = getMeshletId(visibility);
+    uint primitiveId = getPrimitiveId(visibility);
+    if (meshletId == 0)
+        return;
+    MeshletInstance instance = meshletInstanceBuffer.instances[meshletId];
+
+    globalDataRef.globalData.feedbackInfoRef.info.meshId = instance.meshId;
+    globalDataRef.globalData.feedbackInfoRef.info.meshletId = instance.meshletId;
+    globalDataRef.globalData.feedbackInfoRef.info.primitiveId = primitiveId;
+}
