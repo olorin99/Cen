@@ -6,7 +6,7 @@
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_EXT_shader_explicit_arithmetic_types : enable
 
-#include "shaders/cen.glsl"
+#include "cen.glsl"
 
 layout (location = 0) out VsOut {
     flat uint drawId;
@@ -29,8 +29,8 @@ void main() {
     GPUCamera camera = cameraBuffer[globalDataRef.globalData.primaryCamera].camera;
 
     uint meshletIndex = meshletIndexBuffer.indices[gl_VertexIndex];
-    uint meshletId = getMeshletID(meshletIndex);
-    uint primitive = getPrimitiveID(meshletIndex);
+    uint meshletId = getMeshletId(meshletIndex);
+    uint primitive = getPrimitiveId(meshletIndex);
     MeshletInstance instance = meshletInstanceBuffer.instances[meshletId];
     Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
     uint index = indexBuffer.indices[meshlet.indexOffset + primitive];
@@ -40,5 +40,5 @@ void main() {
 
     gl_Position = camera.projection * camera.view * fragPos;
     vertexOut.drawId = instance.meshId;
-    vertexOut.meshletId = instance.meshletId;
+    vertexOut.meshletId = meshletId;
 }

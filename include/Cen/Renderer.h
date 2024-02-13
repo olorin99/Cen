@@ -36,10 +36,22 @@ namespace cen {
 
         void render(const SceneInfo& sceneInfo, canta::Swapchain* swapchain, ui::GuiWorkspace* guiWorkspace);
 
+        auto renderGraph() -> canta::RenderGraph& { return _renderGraph; }
+        auto feedbackInfo() -> FeedbackInfo { return _feedbackInfo; }
+
+        struct RenderSettings {
+            bool debugMeshletId = false;
+            bool debugPrimitiveId = false;
+            bool debugMeshId = false;
+        };
+        auto renderSettings() -> RenderSettings& { return _renderSettings; }
+
     private:
 
         Engine* _engine = nullptr;
         canta::RenderGraph _renderGraph = {};
+
+        RenderSettings _renderSettings = {};
 
         GlobalData _globalData = {};
         FeedbackInfo _feedbackInfo = {};

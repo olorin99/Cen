@@ -10,6 +10,7 @@ namespace canta {
 
 namespace cen {
     class Engine;
+    class Renderer;
 }
 
 namespace cen::ui {
@@ -20,8 +21,7 @@ namespace cen::ui {
         void render() override;
 
         Engine* engine = nullptr;
-        canta::RenderGraph* renderGraph = nullptr;
-        FeedbackInfo feedbackInfo = {};
+        Renderer* renderer = nullptr;
 
         bool numericalStats = true;
 

@@ -2,6 +2,7 @@
 #include <imgui.h>
 
 #include <Cen/Engine.h>
+#include <Cen/Renderer.h>
 #include <Canta/RenderGraph.h>
 
 void cen::ui::SettingsWindow::render() {
@@ -12,18 +13,18 @@ void cen::ui::SettingsWindow::render() {
         if (ImGui::Checkbox("Mesh Shading", &meshShadingEnabled))
             engine->setMeshShadingEnabled(meshShadingEnabled);
 
-        auto timingEnabled = renderGraph->timingEnabled();
+        auto timingEnabled = renderer->renderGraph().timingEnabled();
         if (ImGui::Checkbox("RenderGraph Timing", &timingEnabled))
-            renderGraph->setTimingEnabled(timingEnabled);
-        auto individualTiming = renderGraph->individualTiming();
+            renderer->renderGraph().setTimingEnabled(timingEnabled);
+        auto individualTiming = renderer->renderGraph().individualTiming();
         if (ImGui::Checkbox("RenderGraph Per Pass Timing", &individualTiming))
-            renderGraph->setIndividualTiming(individualTiming);
-        auto pipelineStatsEnabled = renderGraph->pipelineStatisticsEnabled();
+            renderer->renderGraph().setIndividualTiming(individualTiming);
+        auto pipelineStatsEnabled = renderer->renderGraph().pipelineStatisticsEnabled();
         if (ImGui::Checkbox("RenderGraph PiplelineStats", &pipelineStatsEnabled))
-            renderGraph->setPipelineStatisticsEnabled(pipelineStatsEnabled);
-        auto individualPipelineStatistics = renderGraph->individualPipelineStatistics();
+            renderer->renderGraph().setPipelineStatisticsEnabled(pipelineStatsEnabled);
+        auto individualPipelineStatistics = renderer->renderGraph().individualPipelineStatistics();
         if (ImGui::Checkbox("RenderGraph Per Pass PiplelineStats", &individualPipelineStatistics))
-            renderGraph->setIndividualPipelineStatistics(individualPipelineStatistics);
+            renderer->renderGraph().setIndividualPipelineStatistics(individualPipelineStatistics);
 
 
         const char* modes[] = { "FIFO", "MAILBOX", "IMMEDIATE" };
@@ -46,6 +47,12 @@ void cen::ui::SettingsWindow::render() {
         if (ImGui::Button("Reload Pipelines")) {
             engine->pipelineManager().reloadAll(true);
         }
+
+        auto& renderSettings = renderer->renderSettings();
+        ImGui::Checkbox("MeshletId", &renderSettings.debugMeshletId);
+        ImGui::Checkbox("PrimitiveId", &renderSettings.debugPrimitiveId);
+        ImGui::Checkbox("MeshId", &renderSettings.debugMeshId);
+
     }
     ImGui::End();
 }

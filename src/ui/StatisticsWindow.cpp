@@ -2,6 +2,7 @@
 #include <imgui.h>
 
 #include <Cen/Engine.h>
+#include <Cen/Renderer.h>
 #include <Canta/RenderGraph.h>
 
 std::string numberToWord(u64 number) {
@@ -20,11 +21,11 @@ void cen::ui::StatisticsWindow::render() {
         ImGui::Text("Milliseconds: %f", milliseconds);
         ImGui::Text("Delta Time: %f", dt);
 
-        auto timers = renderGraph->timers();
+        auto timers = renderer->renderGraph().timers();
         for (auto& timer : timers) {
             ImGui::Text("%s: %f ms", timer.first.c_str(), timer.second.result().value() / 1000000.f);
         }
-        auto pipelineStatistics = renderGraph->pipelineStatistics();
+        auto pipelineStatistics = renderer->renderGraph().pipelineStatistics();
         for (auto& pipelineStats : pipelineStatistics) {
             if (ImGui::TreeNode(pipelineStats.first.c_str())) {
                 auto stats = pipelineStats.second.result().value();
@@ -43,6 +44,7 @@ void cen::ui::StatisticsWindow::render() {
             }
         }
 
+        auto feedbackInfo = renderer->feedbackInfo();
         if (ImGui::TreeNode("Feedback")) {
             ImGui::Checkbox("Numerical Stats", &numericalStats);
             if (numericalStats) {
@@ -100,7 +102,7 @@ void cen::ui::StatisticsWindow::render() {
             ImGui::TreePop();
         }
         if (ImGui::TreeNode("RenderGraph Stats")) {
-            auto renderGraphStats = renderGraph->statistics();
+            auto renderGraphStats = renderer->renderGraph().statistics();
             ImGui::Text("Passes: %d", renderGraphStats.passes);
             ImGui::Text("Resource: %d", renderGraphStats.resources);
             ImGui::Text("Image: %d", renderGraphStats.images);

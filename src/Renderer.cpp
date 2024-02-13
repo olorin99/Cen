@@ -2,8 +2,10 @@
 #include <Cen/Engine.h>
 #include <cstring>
 #include <Cen/ui/GuiWorkspace.h>
+
 #include <passes/MeshletDrawPass.h>
 #include <passes/MeshletsCullPass.h>
+#include <passes/DebugPasses.h>
 
 auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
     Renderer renderer = {};
@@ -16,7 +18,7 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
 
     renderer._globalData = {
         .maxMeshCount = 0,
-        .maxMeshletCount = 10000000,
+        .maxMeshletCount = MAX_MESHLET_INSTANCE,
         .maxIndirectIndexCount = 10000000 * 3,
         .screenSize = { 1920, 1080 }
     };
@@ -42,35 +44,35 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
 
     renderer._cullMeshesPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
-            .path = "shaders/cull_meshes.comp",
+            .path = "cull_meshes.comp",
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
     renderer._writeMeshletCullCommandPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
-            .path = "shaders/write_mesh_command.comp",
+            .path = "write_mesh_command.comp",
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
     renderer._cullMeshletsPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
-            .path = "shaders/cull_meshlets.comp",
+            .path = "cull_meshlets.comp",
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
     renderer._writeMeshletDrawCommandPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
-            .path = "shaders/write_meshlet_command.comp",
+            .path = "write_meshlet_command.comp",
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
     renderer._drawMeshletsPipelineMeshPath = info.engine->pipelineManager().getPipeline({
         .fragment = { .module = info.engine->pipelineManager().getShader({
-            .path = "shaders/default.frag",
+            .path = "visibility_buffer/visibility.frag",
             .stage = canta::ShaderStage::FRAGMENT
         })},
         .mesh = { .module = info.engine->pipelineManager().getShader({
-            .path = "shaders/default.mesh",
+            .path = "default.mesh",
             .macros = {
                 canta::Macro{ "WORKGROUP_SIZE_X", std::to_string(64) },
                 canta::Macro{ "MAX_MESHLET_VERTICES", std::to_string(cen::MAX_MESHLET_VERTICES) },
@@ -86,12 +88,12 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
             .write = true,
             .compareOp = canta::CompareOp::LEQUAL
         },
-        .colourFormats = { info.swapchainFormat },
+        .colourFormats = { canta::Format::R32_UINT },
         .depthFormat = canta::Format::D32_SFLOAT
     });
     renderer._writePrimitivesPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
-            .path = "shaders/output_indirect.comp",
+            .path = "output_indirect.comp",
             .macros = {
                 canta::Macro{ "WORKGROUP_SIZE_X", std::to_string(64) },
                 canta::Macro{ "MAX_MESHLET_VERTICES", std::to_string(cen::MAX_MESHLET_VERTICES) },
@@ -102,19 +104,22 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
     });
     renderer._drawMeshletsPipelineVertexPath = info.engine->pipelineManager().getPipeline({
         .vertex = { .module = info.engine->pipelineManager().getShader({
-            .path = "shaders/default.vert",
+            .path = "default.vert",
             .stage = canta::ShaderStage::VERTEX
         })},
         .fragment = { .module = info.engine->pipelineManager().getShader({
-            .path = "shaders/default.frag",
+            .path = "visibility_buffer/visibility.frag",
             .stage = canta::ShaderStage::FRAGMENT
         })},
+        .rasterState = {
+            .cullMode = canta::CullMode::NONE
+        },
         .depthState = {
             .test = true,
             .write = true,
             .compareOp = canta::CompareOp::LEQUAL
         },
-        .colourFormats = { info.swapchainFormat },
+        .colourFormats = { canta::Format::R32_UINT },
         .depthFormat = canta::Format::D32_SFLOAT
     });
 
@@ -180,6 +185,14 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .handle = _feedbackBuffers[flyingIndex],
         .name = "feedback_buffer"
     });
+    auto visibilityBuffer = _renderGraph.addImage({
+        .format = canta::Format::R32_UINT,
+        .name = "visibility_buffer"
+    });
+    auto backbuffer = _renderGraph.addImage({
+        .format = canta::Format::RGBA8_UNORM,
+        .name = "backbuffer"
+    });
 
     passes::cullMeshlets(_renderGraph, {
         .globalBuffer = globalBufferResource,
@@ -210,7 +223,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .transformBuffer = transformsResource,
         .cameraBuffer = cameraResource,
         .feedbackBuffer = feedbackIndex,
-        .backbufferImage = swapchainResource,
+        .backbufferImage = visibilityBuffer,
         .depthImage = depthIndex,
         .useMeshShading = _engine->meshShadingEnabled(),
         .meshShadingPipeline = _drawMeshletsPipelineMeshPath,
@@ -219,6 +232,58 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .maxMeshletInstancesCount = _globalData.maxMeshletCount,
         .generatedPrimitiveCount = _globalData.maxIndirectIndexCount
     });
+
+    auto backbufferClear = _renderGraph.addAlias(backbuffer);
+    _renderGraph.addClearPass("clear_backbuffer", backbufferClear);
+
+    _renderSettings.debugMeshletId = (!_renderSettings.debugPrimitiveId && !_renderSettings.debugMeshId);
+
+    if (_renderSettings.debugMeshletId) {
+        passes::debugVisibilityBuffer(_renderGraph, {
+            .name = "debug_meshletId",
+            .visibilityBuffer = visibilityBuffer,
+            .backbuffer = backbuffer,
+            .meshletInstanceBuffer = meshletCullingOutputResource,
+            .pipeline = _engine->pipelineManager().getPipeline({
+                .compute = { .module = _engine->pipelineManager().getShader({
+                    .path = "debug/meshletId.comp",
+                    .stage = canta::ShaderStage::COMPUTE
+                })}
+            })
+        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+    }
+    if (_renderSettings.debugPrimitiveId) {
+        passes::debugVisibilityBuffer(_renderGraph, {
+            .name = "debug_primitiveId",
+            .visibilityBuffer = visibilityBuffer,
+            .backbuffer = backbuffer,
+            .meshletInstanceBuffer = meshletCullingOutputResource,
+            .pipeline = _engine->pipelineManager().getPipeline({
+                .compute = { .module = _engine->pipelineManager().getShader({
+                    .path = "debug/primitiveId.comp",
+                    .stage = canta::ShaderStage::COMPUTE
+                })}
+            })
+        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+    }
+    if (_renderSettings.debugMeshId) {
+        passes::debugVisibilityBuffer(_renderGraph, {
+            .name = "debug_meshId",
+            .visibilityBuffer = visibilityBuffer,
+            .backbuffer = backbuffer,
+            .meshletInstanceBuffer = meshletCullingOutputResource,
+            .pipeline = _engine->pipelineManager().getPipeline({
+                .compute = { .module = _engine->pipelineManager().getShader({
+                    .path = "debug/meshId.comp",
+                    .stage = canta::ShaderStage::COMPUTE
+                })}
+            })
+        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+    }
+
+
+
+    _renderGraph.addBlitPass("backbuffer_to_swapchain", backbuffer, swapchainResource);
 
     if (guiWorkspace) {
         auto uiSwapchainIndex = _renderGraph.addAlias(swapchainResource);

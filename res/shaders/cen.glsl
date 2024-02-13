@@ -155,20 +155,23 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer Gl
 #define MESHLET_MASK ((1u << MESHLET_ID_BITS) - 1u)
 #define PRIMITIVE_MASK ((1u << PRIMITIVE_ID_BITS) - 1u)
 
+#define MAX_MESHLET_INSTANCE 10000000
+#define MESHLET_CLEAR_ID MAX_MESHLET_INSTANCE + 1
+
 #ifndef __cplusplus
-uint setMeshletID(uint meshletID) {
-    return meshletID << PRIMITIVE_ID_BITS;
+uint setMeshletId(uint meshletId) {
+    return meshletId << PRIMITIVE_ID_BITS;
 }
 
-uint setPrimitiveID(uint primitiveID) {
-    return primitiveID & PRIMITIVE_MASK;
+uint setPrimitiveId(uint primitiveId) {
+    return primitiveId & PRIMITIVE_MASK;
 }
 
-uint getMeshletID(uint visibility) {
+uint getMeshletId(uint visibility) {
     return (visibility >> PRIMITIVE_ID_BITS) & MESHLET_MASK;
 }
 
-uint getPrimitiveID(uint visibility) {
+uint getPrimitiveId(uint visibility) {
     return uint(visibility & PRIMITIVE_MASK);
 }
 #endif

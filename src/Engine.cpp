@@ -10,7 +10,7 @@ auto cen::Engine::create(CreateInfo info) -> std::unique_ptr<Engine> {
     }).value();
     engine->_pipelineManager = canta::PipelineManager::create({
         .device = engine->device(),
-        .rootPath = info.assetPath
+        .rootPath = info.assetPath / "shaders"
     });
     engine->_uploadBuffer = canta::UploadBuffer::create({
         .device = engine->device(),

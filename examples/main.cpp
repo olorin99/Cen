@@ -36,12 +36,6 @@ int main(int argc, char* argv[]) {
         .engine = engine.get(),
         .swapchainFormat = swapchain->format()
     });
-
-
-    auto renderGraph = canta::RenderGraph::create({
-        .device = engine->device(),
-        .name = "RenderGraph"
-    });
     auto scene = cen::Scene::create({
         .engine = engine.get()
     });
@@ -52,13 +46,13 @@ int main(int argc, char* argv[]) {
     });
     cen::ui::SettingsWindow settingsWindow = {};
     settingsWindow.engine = engine.get();
-    settingsWindow.renderGraph = &renderGraph;
+    settingsWindow.renderer = &renderer;
     settingsWindow.swapchain = &swapchain.value();
     settingsWindow.name = "Settings";
 
     cen::ui::StatisticsWindow statisticsWindow = {};
     statisticsWindow.engine = engine.get();
-    statisticsWindow.renderGraph = &renderGraph;
+    statisticsWindow.renderer = &renderer;
     statisticsWindow.name = "Statistics";
 
     cen::ui::SceneWindow sceneWindow = {};

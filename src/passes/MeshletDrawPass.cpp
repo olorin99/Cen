@@ -98,7 +98,7 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
         outputIndexBufferPass.addStorageBufferWrite(drawCommandsIndex, canta::PipelineStage::COMPUTE_SHADER);
         outputIndexBufferPass.addStorageBufferWrite(outputIndicesIndex, canta::PipelineStage::COMPUTE_SHADER);
 
-        outputIndexBufferPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+        outputIndexBufferPass.setExecuteFunction([params, outputIndicesIndex, drawCommandsIndex](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto command = graph.getBuffer(params.command);
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
             auto vertexBuffer = graph.getBuffer(params.vertexBuffer);
@@ -155,7 +155,7 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
         geometryPass.addColourWrite(params.backbufferImage);
         geometryPass.addDepthWrite(params.depthImage);
 
-        geometryPass.setExecuteFunction([&, outputIndicesIndex, drawCommandsIndex] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+        geometryPass.setExecuteFunction([params, outputIndicesIndex, drawCommandsIndex] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
             auto vertexBuffer = graph.getBuffer(params.vertexBuffer);
             auto indexBuffer = graph.getBuffer(params.indexBuffer);
