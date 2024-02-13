@@ -182,6 +182,8 @@ int main(int argc, char* argv[]) {
 
         statisticsWindow.dt = dt;
         statisticsWindow.milliseconds = milliseconds;
+
+        settingsWindow.cameraCount = scene._cameras.size();
         guiWorkspace.render();
 
         renderer.render({

@@ -281,6 +281,18 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
             })
         }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
     }
+    if (_renderSettings.debugFrustumIndex >= 0) {
+        passes::debugFrustum(_renderGraph, {
+            .backbuffer = backbuffer,
+            .depth = depthIndex,
+            .globalBuffer = globalBufferResource,
+            .cameraBuffer = cameraResource,
+            .cameraIndex = _renderSettings.debugFrustumIndex,
+            .lineWidth = _renderSettings.debugLineWidth,
+            .colour = _renderSettings.debugColour,
+            .engine = _engine
+        }).addStorageImageRead(backbufferClear, canta::PipelineStage::FRAGMENT_SHADER);
+    }
 
 
     if (_renderSettings.mousePick) {

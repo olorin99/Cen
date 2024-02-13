@@ -2,6 +2,7 @@
 #define CEN_SETTINGSWINDOW_H
 
 #include <Cen/ui/Window.h>
+#include <Ende/platform.h>
 
 namespace canta {
     class RenderGraph;
@@ -24,6 +25,7 @@ namespace cen::ui {
         Renderer* renderer = nullptr;
         canta::Swapchain* swapchain = nullptr;
         bool culling = true;
+        i32 cameraCount = 0;
 
     private:
 

@@ -43,6 +43,9 @@ namespace cen {
             bool debugMeshletId = false;
             bool debugPrimitiveId = false;
             bool debugMeshId = false;
+            i32 debugFrustumIndex = -1;
+            f32 debugLineWidth = 1;
+            std::array<f32, 3> debugColour = { 1, 1, 1 };
 
             bool mousePick = false;
             i32 mouseX = 0;

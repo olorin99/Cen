@@ -3,6 +3,10 @@
 
 #include <Canta/RenderGraph.h>
 
+namespace cen {
+    class Engine;
+}
+
 namespace cen::passes {
 
     struct VisibilityDebugParams {
@@ -13,6 +17,18 @@ namespace cen::passes {
         canta::PipelineHandle pipeline;
     };
     auto debugVisibilityBuffer(canta::RenderGraph& graph, VisibilityDebugParams params) -> canta::RenderPass&;
+
+    struct FrustumDebugParam {
+        canta::ImageIndex backbuffer;
+        canta::ImageIndex depth;
+        canta::BufferIndex globalBuffer;
+        canta::BufferIndex cameraBuffer;
+        i32 cameraIndex;
+        f32 lineWidth;
+        std::array<f32, 3> colour;
+        cen::Engine* engine;
+    };
+    auto debugFrustum(canta::RenderGraph& graph, FrustumDebugParam params) -> canta::RenderPass&;
 
 }
 
