@@ -51,13 +51,16 @@ void cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
                 u64 meshletInstanceBuffer;
                 u64 transformsBuffer;
                 u64 cameraBuffer;
+                i32 cameraIndex;
+                i32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                 .globalDataRef = globalBuffer->address(),
                 .meshBuffer = meshBuffer->address(),
                 .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                 .transformsBuffer = transformsBuffer->address(),
-                .cameraBuffer = cameraBuffer->address()
+                .cameraBuffer = cameraBuffer->address(),
+                .cameraIndex = params.cameraIndex
             });
             cmd.dispatchThreads(params.meshCount);
         });
@@ -114,6 +117,8 @@ void cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
                 u64 meshletInstanceOutputBuffer;
                 u64 transformsBuffer;
                 u64 cameraBuffer;
+                i32 cameraIndex;
+                i32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                 .globalDataRef = globalBuffer->address(),
@@ -121,7 +126,8 @@ void cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
                 .meshletInstanceInputBuffer = meshletInstanceInputBuffer->address(),
                 .meshletInstanceOutputBuffer = meshletInstanceOutputBuffer->address(),
                 .transformsBuffer = transformsBuffer->address(),
-                .cameraBuffer = cameraBuffer->address()
+                .cameraBuffer = cameraBuffer->address(),
+                .cameraIndex = params.cameraIndex
             });
             cmd.dispatchIndirect(meshCommandBuffer, 0);
         });

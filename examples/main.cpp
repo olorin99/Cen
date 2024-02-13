@@ -100,6 +100,8 @@ int main(int argc, char* argv[]) {
         model = engine->assetManager().loadModel(gltfPath);
     });
 
+    auto rootNode = scene.addNode("mesh_root");
+
     threadPool.wait();
     f32 scale = 4;
     for (u32 i = 0; i < 30; i++) {
@@ -108,7 +110,7 @@ int main(int argc, char* argv[]) {
                 for (auto& mesh : model->meshes) {
                     scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
                         .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }
-                    }));
+                    }), rootNode);
                 }
             }
         }

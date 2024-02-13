@@ -192,6 +192,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .outputCommand = commandResource,
         .maxMeshletInstancesCount = _globalData.maxMeshletCount,
         .meshCount = sceneInfo.meshCount,
+        .cameraIndex = static_cast<i32>(sceneInfo.cullingCamera),
         .cullMeshesPipeline = _cullMeshesPipeline,
         .writeMeshletCullCommandPipeline = _writeMeshletCullCommandPipeline,
         .culLMeshletsPipeline = _cullMeshletsPipeline,

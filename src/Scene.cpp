@@ -73,13 +73,7 @@ void cen::Scene::prepare() {
     assert(_meshes.size() == _worldTransforms.size());
 
     _gpuCameras.clear();
-    cullingCamera().updateFrustum();
-    primaryCamera().updateFrustum();
-    _gpuCameras.push_back(cullingCamera().gpuCamera());
-    _gpuCameras.push_back(primaryCamera().gpuCamera());
     for (u32 cameraIndex = 0; cameraIndex < _cameras.size(); cameraIndex++) {
-        if (cameraIndex == _primaryCamera || cameraIndex == _cullingCamera)
-            continue;
         getCamera(cameraIndex).updateFrustum();
         _gpuCameras.push_back(getCamera(cameraIndex).gpuCamera());
     }

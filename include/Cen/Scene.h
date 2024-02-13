@@ -49,7 +49,7 @@ namespace cen {
             i32 index = -1;
         };
 
-        auto addNode(std::string_view name, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
+        auto addNode(std::string_view name, const Transform& transform = Transform(), SceneNode* parent = nullptr) -> SceneNode*;
 
         auto addModel(std::string_view name, const Model& model, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
 

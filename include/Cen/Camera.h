@@ -26,7 +26,7 @@ namespace cen {
         struct CreatePerspectiveInfo {
             ende::math::Vec3f position = { 0, 0, 0 };
             ende::math::Quaternion rotation = { 0, 0, 0, 1 };
-            f32 fov = 45;
+            f32 fov = ende::math::rad(45);
             f32 width = 1;
             f32 height = 1;
             f32 near = 0.1;

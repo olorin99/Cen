@@ -16,6 +16,7 @@ namespace cen::passes {
         canta::BufferIndex outputCommand;
         u32 maxMeshletInstancesCount;
         u32 meshCount;
+        i32 cameraIndex;
         canta::PipelineHandle cullMeshesPipeline;
         canta::PipelineHandle writeMeshletCullCommandPipeline;
         canta::PipelineHandle culLMeshletsPipeline;

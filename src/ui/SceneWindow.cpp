@@ -47,10 +47,18 @@ void nodeTypeMesh(cen::Scene::SceneNode* node, cen::Scene* scene) {
 
 void nodeTypeCamera(cen::Scene::SceneNode* node, cen::Scene* scene) {
     ImGui::Text("Camera: %s", node->name.c_str());
-    if (ImGui::Button("Set as primary"))
-        scene->setPrimaryCamera(node);
-    if (ImGui::Button("Set as culling"))
-        scene->setCullingCamera(node);
+    if (node->index == scene->_primaryCamera)
+        ImGui::Text("Is primary camera");
+    else {
+        if (ImGui::Button("Set as primary"))
+            scene->setPrimaryCamera(node);
+    }
+    if (node->index == scene->_cullingCamera)
+        ImGui::Text("Is culling camera");
+    else {
+        if (ImGui::Button("Set as culling"))
+            scene->setCullingCamera(node);
+    }
     auto near = scene->getCamera(node).near();
     if (ImGui::DragFloat("Near", &near, 0.1))
         scene->getCamera(node).setNear(near);
