@@ -7,6 +7,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types : enable
 
 #include "cen.glsl"
+#include "visibility_buffer/visibility.glsl"
 
 #ifndef WORKGROUP_SIZE_X
 #define WORKGROUP_SIZE_X 64

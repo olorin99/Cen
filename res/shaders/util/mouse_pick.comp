@@ -8,6 +8,7 @@
 
 #include "canta.glsl"
 #include "cen.glsl"
+#include "visibility_buffer/visibility.glsl"
 
 layout (rg32ui, set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform readonly uimage2D storageImages[];
 

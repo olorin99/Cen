@@ -45,6 +45,8 @@ struct GPUMesh {
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer MeshBuffer {
     GPUMesh meshes[];
 };
+#else
+#define MeshBuffer u64
 #endif
 
 struct Meshlet {
@@ -60,6 +62,8 @@ struct Meshlet {
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer MeshletBuffer {
     Meshlet meshlets[];
 };
+#else
+#define MeshletBuffer u64
 #endif
 
 struct MeshletInstance {
@@ -71,6 +75,8 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) buffer MeshletInst
     uint count;
     MeshletInstance instances[];
 };
+#else
+#define MeshletInstanceBuffer u64
 #endif
 
 struct Vertex {
@@ -100,6 +106,12 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) buffer MeshletInde
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer TransformsBuffer {
     mat4 transforms[];
 };
+#else
+#define VertexBuffer u64
+#define IndexBuffer u64
+#define PrimitiveBuffer u64
+#define MeshletIndexBuffer u64
+#define TransformsBuffer u64
 #endif
 
 struct Frustum {
@@ -118,6 +130,8 @@ struct GPUCamera {
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer CameraBuffer {
     GPUCamera camera;
 };
+#else
+#define CameraBuffer u64
 #endif
 
 struct FeedbackInfo {
@@ -145,6 +159,13 @@ struct GlobalData {
     uvec2 screenSize;
     int cullingCamera;
     int primaryCamera;
+    MeshBuffer meshBufferRef;
+    MeshletBuffer meshletBufferRef;
+    VertexBuffer vertexBufferRef;
+    IndexBuffer indexBufferRef;
+    PrimitiveBuffer primitiveBufferRef;
+    TransformsBuffer transformsBufferRef;
+    CameraBuffer cameraBufferRef;
     FeedbackInfoRef feedbackInfoRef;
 };
 #ifndef __cplusplus
@@ -153,30 +174,7 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer Gl
 };
 #endif
 
-#define MESHLET_ID_BITS 24
-#define PRIMITIVE_ID_BITS 8
-#define MESHLET_MASK ((1u << MESHLET_ID_BITS) - 1u)
-#define PRIMITIVE_MASK ((1u << PRIMITIVE_ID_BITS) - 1u)
-
 #define MAX_MESHLET_INSTANCE 10000000
 #define MESHLET_CLEAR_ID MAX_MESHLET_INSTANCE + 1
-
-#ifndef __cplusplus
-uint setMeshletId(uint meshletId) {
-    return meshletId << PRIMITIVE_ID_BITS;
-}
-
-uint setPrimitiveId(uint primitiveId) {
-    return primitiveId & PRIMITIVE_MASK;
-}
-
-uint getMeshletId(uint visibility) {
-    return (visibility >> PRIMITIVE_ID_BITS) & MESHLET_MASK;
-}
-
-uint getPrimitiveId(uint visibility) {
-    return uint(visibility & PRIMITIVE_MASK);
-}
-#endif
 
 #endif

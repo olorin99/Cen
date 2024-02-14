@@ -13,6 +13,7 @@ namespace cen::passes {
         std::string_view name;
         canta::ImageIndex visibilityBuffer;
         canta::ImageIndex backbuffer;
+        canta::BufferIndex globalBuffer;
         canta::BufferIndex meshletInstanceBuffer;
         canta::PipelineHandle pipeline;
     };

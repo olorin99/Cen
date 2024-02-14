@@ -237,13 +237,14 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     auto backbufferClear = _renderGraph.addAlias(backbuffer);
     _renderGraph.addClearPass("clear_backbuffer", backbufferClear);
 
-    _renderSettings.debugMeshletId = (!_renderSettings.debugPrimitiveId && !_renderSettings.debugMeshId);
+    _renderSettings.debugMeshletId = (!_renderSettings.debugPrimitiveId && !_renderSettings.debugMeshId && !_renderSettings.debugWireframe);
 
     if (_renderSettings.debugMeshletId) {
         passes::debugVisibilityBuffer(_renderGraph, {
             .name = "debug_meshletId",
             .visibilityBuffer = visibilityBuffer,
             .backbuffer = backbuffer,
+            .globalBuffer = globalBufferResource,
             .meshletInstanceBuffer = meshletCullingOutputResource,
             .pipeline = _engine->pipelineManager().getPipeline({
                 .compute = { .module = _engine->pipelineManager().getShader({
@@ -258,6 +259,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
             .name = "debug_primitiveId",
             .visibilityBuffer = visibilityBuffer,
             .backbuffer = backbuffer,
+            .globalBuffer = globalBufferResource,
             .meshletInstanceBuffer = meshletCullingOutputResource,
             .pipeline = _engine->pipelineManager().getPipeline({
                 .compute = { .module = _engine->pipelineManager().getShader({
@@ -272,6 +274,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
             .name = "debug_meshId",
             .visibilityBuffer = visibilityBuffer,
             .backbuffer = backbuffer,
+            .globalBuffer = globalBufferResource,
             .meshletInstanceBuffer = meshletCullingOutputResource,
             .pipeline = _engine->pipelineManager().getPipeline({
                 .compute = { .module = _engine->pipelineManager().getShader({
@@ -292,6 +295,21 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
             .colour = _renderSettings.debugColour,
             .engine = _engine
         }).addStorageImageRead(backbufferClear, canta::PipelineStage::FRAGMENT_SHADER);
+    }
+    if (_renderSettings.debugWireframe) {
+        passes::debugVisibilityBuffer(_renderGraph, {
+            .name = "debug_meshId",
+            .visibilityBuffer = visibilityBuffer,
+            .backbuffer = backbuffer,
+            .globalBuffer = globalBufferResource,
+            .meshletInstanceBuffer = meshletCullingOutputResource,
+            .pipeline = _engine->pipelineManager().getPipeline({
+                .compute = { .module = _engine->pipelineManager().getShader({
+                    .path = "debug/wireframe_solid.comp",
+                    .stage = canta::ShaderStage::COMPUTE
+                })}
+            })
+        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
     }
 
 
@@ -362,6 +380,13 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     _globalData.screenSize = { 1920, 1080 };
     _globalData.primaryCamera = sceneInfo.primaryCamera,
     _globalData.cullingCamera = sceneInfo.cullingCamera;
+    _globalData.meshBufferRef = sceneInfo.meshBuffer->address();
+    _globalData.meshletBufferRef = _engine->meshletBuffer()->address();
+    _globalData.vertexBufferRef = _engine->vertexBuffer()->address();
+    _globalData.indexBufferRef = _engine->indexBuffer()->address();
+    _globalData.primitiveBufferRef = _engine->primitiveBuffer()->address();
+    _globalData.transformsBufferRef = sceneInfo.transformBuffer->address();
+    _globalData.cameraBufferRef = sceneInfo.cameraBuffer->address();
     _globalData.feedbackInfoRef = _feedbackBuffers[flyingIndex]->address();
     _globalBuffers[flyingIndex]->data(_globalData);
 

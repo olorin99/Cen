@@ -1,0 +1,112 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference2 : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
+
+#include "canta.glsl"
+#include "cen.glsl"
+#include "visibility_buffer/visibility.glsl"
+
+layout (rg32ui, set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform readonly uimage2D storageImages[];
+layout (set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform writeonly image2D storageImagesOutput[];
+
+layout (push_constant) uniform PushData {
+    GlobalDataRef globalDataRef;
+    int visibilityImageIndex;
+    int backbufferIndex;
+    MeshletInstanceBuffer meshletInstanceBuffer;
+};
+
+uint[3] loadIndices(Meshlet meshlet, uint primitiveID) {
+    uint vertexOffset = meshlet.vertexOffset;
+    uint indexOffset = meshlet.indexOffset;
+    uint primitiveOffset = meshlet.primitiveOffset;
+
+    uint[] primitiveIDs = uint[](
+        globalDataRef.globalData.primitiveBufferRef.primitives[primitiveOffset + primitiveID * 3 + 0],
+        globalDataRef.globalData.primitiveBufferRef.primitives[primitiveOffset + primitiveID * 3 + 1],
+        globalDataRef.globalData.primitiveBufferRef.primitives[primitiveOffset + primitiveID * 3 + 2]
+    );
+
+    return uint[3](
+        globalDataRef.globalData.indexBufferRef.indices[indexOffset + primitiveIDs[0]] + vertexOffset,
+        globalDataRef.globalData.indexBufferRef.indices[indexOffset + primitiveIDs[1]] + vertexOffset,
+        globalDataRef.globalData.indexBufferRef.indices[indexOffset + primitiveIDs[2]] + vertexOffset
+    );
+}
+
+Vertex[3] loadVertices(uint[3] indices) {
+    return Vertex[3](
+        globalDataRef.globalData.vertexBufferRef.vertices[indices[0]],
+        globalDataRef.globalData.vertexBufferRef.vertices[indices[1]],
+        globalDataRef.globalData.vertexBufferRef.vertices[indices[2]]
+    );
+}
+
+layout (local_size_x = 32, local_size_y = 32) in;
+void main() {
+
+    ivec2 globCoords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 outputSize = imageSize(storageImagesOutput[backbufferIndex]);
+    const vec2 texCoords = (vec2(globCoords) + 0.5) / outputSize;
+    if (any(greaterThanEqual(globCoords, outputSize)))
+        return;
+
+    ivec2 inputSize = imageSize(storageImages[visibilityImageIndex]);
+
+    uint visibility = imageLoad(storageImages[visibilityImageIndex], globCoords).r;
+    if (visibility == 0) {
+        imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(1.0));
+        return;
+    }
+
+    uint meshletId = getMeshletId(visibility);
+    uint primitiveId = getPrimitiveId(visibility);
+    MeshletInstance instance = meshletInstanceBuffer.instances[meshletId];
+
+    const Meshlet meshlet = globalDataRef.globalData.meshletBufferRef.meshlets[instance.meshletId];
+    const uint[] indices = loadIndices(meshlet, primitiveId);
+    const Vertex[] vertices = loadVertices(indices);
+
+    const mat4 transform = globalDataRef.globalData.transformsBufferRef.transforms[instance.meshId];
+    const GPUCamera camera = globalDataRef.globalData.cameraBufferRef[globalDataRef.globalData.primaryCamera].camera;
+
+    const vec3[] worldPositions = vec3[](
+        (transform * vec4(vertices[0].position, 1.0)).xyz,
+        (transform * vec4(vertices[1].position, 1.0)).xyz,
+        (transform * vec4(vertices[2].position, 1.0)).xyz
+    );
+    const vec4[] clipPositions = vec4[](
+        camera.projection * camera.view * vec4(worldPositions[0], 1.0),
+        camera.projection * camera.view * vec4(worldPositions[1], 1.0),
+        camera.projection * camera.view * vec4(worldPositions[2], 1.0)
+    );
+
+    const BarycentricDeriv derivitives = calcDerivitives(clipPositions, texCoords * 2 - 1, globalDataRef.globalData.screenSize);
+    const vec3 worldPosition = interpolateVec3(derivitives, worldPositions);
+
+    const vec3[] normals = vec3[](
+        vertices[0].normal,
+        vertices[1].normal,
+        vertices[2].normal
+    );
+    const vec3 normal = normalize(interpolateVec3(derivitives, normals));
+
+    const vec2[] uvs = vec2[](
+        vertices[0].uv,
+        vertices[1].uv,
+        vertices[2].uv
+    );
+    const UVGradient uvGrad = calcUVDerivitives(derivitives, uvs);
+
+    vec3 d = abs(derivitives.ddx) + abs(derivitives.ddy);
+    float width = 1;
+    vec3 a3 = smoothstep(d * (width - 0.5), d * (width + 0.5), derivitives.lambda);
+
+    vec3 result = vec3(min(min(a3.x, a3.y), a3.z));
+
+    imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(result, 1.0));
+}

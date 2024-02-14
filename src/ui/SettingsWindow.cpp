@@ -64,6 +64,7 @@ void cen::ui::SettingsWindow::render() {
         ImGui::Checkbox("MeshletId", &renderSettings.debugMeshletId);
         ImGui::Checkbox("PrimitiveId", &renderSettings.debugPrimitiveId);
         ImGui::Checkbox("MeshId", &renderSettings.debugMeshId);
+        ImGui::Checkbox("Wireframe Solid", &renderSettings.debugWireframe);
         ImGui::SliderInt("DebugFrustum", &renderSettings.debugFrustumIndex, -1, cameraCount - 1);
         ImGui::DragFloat("Debug Line Width", &renderSettings.debugLineWidth, 0.1);
         ImGui::ColorEdit3("Debug Colour", &renderSettings.debugColour[0]);

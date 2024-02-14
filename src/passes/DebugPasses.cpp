@@ -6,21 +6,25 @@ auto cen::passes::debugVisibilityBuffer(canta::RenderGraph &graph, cen::passes::
 
     debugVisibilityBufferpass.addStorageImageRead(params.visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER);
     debugVisibilityBufferpass.addStorageImageWrite(params.backbuffer, canta::PipelineStage::COMPUTE_SHADER);
+    debugVisibilityBufferpass.addStorageBufferRead(params.globalBuffer, canta::PipelineStage::COMPUTE_SHADER);
     debugVisibilityBufferpass.addStorageBufferRead(params.meshletInstanceBuffer, canta::PipelineStage::COMPUTE_SHADER);
 
     debugVisibilityBufferpass.setExecuteFunction([params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
         auto visibilityBufferImage = graph.getImage(params.visibilityBuffer);
         auto backbufferImage = graph.getImage(params.backbuffer);
+        auto globalBuffer = graph.getBuffer(params.globalBuffer);
         auto meshletInstanceBuffer = graph.getBuffer(params.meshletInstanceBuffer);
 
         cmd.bindPipeline(params.pipeline);
 
         struct Push {
+            u64 globalBuffer;
             i32 visibilityIndex;
             i32 backbufferIndex;
             u64 meshletInstanceBuffer;
         };
         cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+            .globalBuffer = globalBuffer->address(),
             .visibilityIndex = visibilityBufferImage.index(),
             .backbufferIndex = backbufferImage.index(),
             .meshletInstanceBuffer = meshletInstanceBuffer->address()

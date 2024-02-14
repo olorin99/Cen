@@ -8,11 +8,13 @@
 
 #include "canta.glsl"
 #include "cen.glsl"
+#include "visibility_buffer/visibility.glsl"
 
 layout (rg32ui, set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform readonly uimage2D storageImages[];
 layout (set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform writeonly image2D storageImagesOutput[];
 
 layout (push_constant) uniform PushData {
+    GlobalDataRef globalDataRef;
     int visibilityImageIndex;
     int backbufferIndex;
     MeshletInstanceBuffer meshletInstanceBuffer;
@@ -37,9 +39,10 @@ void main() {
     ivec2 inputSize = imageSize(storageImages[visibilityImageIndex]);
 
     uint visibility = imageLoad(storageImages[visibilityImageIndex], globCoords).r;
-    uint meshletId = getMeshletId(visibility);
-    if (meshletId == 0)
+    if (visibility == 0)
         return;
+
+    uint meshletId = getMeshletId(visibility);
     MeshletInstance instance = meshletInstanceBuffer.instances[meshletId];
 
     vec3 result = hue2rgb(instance.meshletId * 1.71f);

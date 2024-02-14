@@ -8,6 +8,7 @@
 #extension GL_EXT_mesh_shader : enable
 
 #include "cen.glsl"
+#include "visibility_buffer/visibility.glsl"
 
 #ifndef WORKGROUP_SIZE_X
 #define WORKGROUP_SIZE_X 64

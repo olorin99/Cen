@@ -8,6 +8,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types : enable
 
 #include "cen.glsl"
+#include "visibility_buffer/visibility.glsl"
 
 layout (location = 0) in VsOut {
     flat uint drawId;

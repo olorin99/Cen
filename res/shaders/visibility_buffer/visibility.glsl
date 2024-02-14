@@ -1,6 +1,11 @@
 #ifndef VISIBILITY_GLSL
 #define VISIBILITY_GLSL
 
+#define MESHLET_ID_BITS 24
+#define PRIMITIVE_ID_BITS 8
+#define MESHLET_MASK ((1u << MESHLET_ID_BITS) - 1u)
+#define PRIMITIVE_MASK ((1u << PRIMITIVE_ID_BITS) - 1u)
+
 uint setMeshletId(uint meshletId) {
     return meshletId << PRIMITIVE_ID_BITS;
 }
