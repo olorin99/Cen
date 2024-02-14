@@ -87,7 +87,7 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
         .depthState = {
             .test = true,
             .write = true,
-            .compareOp = canta::CompareOp::LEQUAL
+            .compareOp = canta::CompareOp::GEQUAL
         },
         .colourFormats = { canta::Format::R32_UINT },
         .depthFormat = canta::Format::D32_SFLOAT
@@ -118,7 +118,7 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
         .depthState = {
             .test = true,
             .write = true,
-            .compareOp = canta::CompareOp::LEQUAL
+            .compareOp = canta::CompareOp::GEQUAL
         },
         .colourFormats = { canta::Format::R32_UINT },
         .depthFormat = canta::Format::D32_SFLOAT

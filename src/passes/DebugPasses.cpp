@@ -60,7 +60,7 @@ auto cen::passes::debugFrustum(canta::RenderGraph &graph, cen::passes::FrustumDe
             .depthState = {
                 .test = true,
                 .write = false,
-                .compareOp = canta::CompareOp::LEQUAL
+                .compareOp = canta::CompareOp::GEQUAL
             },
             .colourFormats = { backbuffer->format() },
             .depthFormat = canta::Format::D32_SFLOAT

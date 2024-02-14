@@ -1,9 +1,37 @@
 #include "Cen/Camera.h"
 
+template <typename T>
+constexpr inline ende::math::Mat<4, T> perspective(T fov, T aspect, T near, T far) {
+    const f32 tanHalfFov = std::tan(fov / 2.f);
+
+    ende::math::Mat<4, T> result;
+    result[0][0] = 1.f / (tanHalfFov * aspect);
+    result[0][1] = 0.f;
+    result[0][2] = 0.f;
+    result[0][3] = 0.f;
+
+    result[1][0] = 0.f;
+    result[1][1] = 1.f / tanHalfFov;
+    result[1][2] = 0.f;
+    result[1][3] = 0.f;
+
+    result[2][0] = 0.f;
+    result[2][1] = 0.f;
+    result[2][2] = 0.f;
+    result[2][3] = T(1);
+
+    result[3][0] = 0.f;
+    result[3][1] = 0.f;
+    result[3][2] = near;
+    result[3][3] = 0.f;
+
+    return result;
+}
+
 auto cen::Camera::create(cen::Camera::CreatePerspectiveInfo info) -> Camera {
     Camera camera = {};
 
-    camera._projection = ende::math::perspective(info.fov, info.width / info.height, info.near, info.far);
+    camera._projection = perspective(info.fov, info.width / info.height, info.near, info.far);
     camera._position = info.position;
     camera._rotation = info.rotation;
     camera._fov = info.fov;
@@ -35,17 +63,17 @@ auto cen::Camera::view() const -> ende::math::Mat4f {
 
 void cen::Camera::setNear(f32 near) {
     _near = near;
-    _projection = ende::math::perspective(_fov, _width / _height, _near, _far);
+    _projection = perspective(_fov, _width / _height, _near, _far);
 }
 
 void cen::Camera::setFar(f32 far) {
     _far = far;
-    _projection = ende::math::perspective(_fov, _width / _height, _near, _far);
+    _projection = perspective(_fov, _width / _height, _near, _far);
 }
 
 void cen::Camera::setFov(f32 fov) {
     _fov = fov;
-    _projection = ende::math::perspective(_fov, _width / _height, _near, _far);
+    _projection = perspective(_fov, _width / _height, _near, _far);
 }
 
 auto cen::Camera::gpuCamera() const -> GPUCamera {
@@ -68,21 +96,20 @@ auto cen::Camera::gpuCamera() const -> GPUCamera {
 }
 
 auto cen::Camera::frustumCorners() const -> std::array<ende::math::Vec4f, 8> {
-    const auto inverseViewProjection = viewProjection().inverse();
+    const auto inverseViewProjection = (ende::math::perspective(_fov, _width / _height, _near, _far) * view()).inverse();
     std::array<ende::math::Vec4f, 8> corners = {};
-    u32 index = 0;
-    for (unsigned int x = 0; x < 2; ++x) {
-        for (unsigned int y = 0; y < 2; ++y) {
-            for (unsigned int z = 0; z < 2; ++z) {
-                const ende::math::Vec4f pt = inverseViewProjection.transform(ende::math::Vec4f{
-                        2.0f * x - 1.0f,
-                        2.0f * y - 1.0f,
-                        2.0f * z - 1.0f,
-                        1.0f});
-
-                corners[index++] = pt / pt.w();
-            }
-        }
+    constexpr std::array offsets = {
+            ende::math::Vec<2, f32>{-1,  1}, ende::math::Vec<2, f32>{-1, -1}, ende::math::Vec<2, f32>{1, -1}, ende::math::Vec<2, f32>{1,  1},
+            ende::math::Vec<2, f32>{1,  1}, ende::math::Vec<2, f32>{-1,  1}, ende::math::Vec<2, f32>{-1, -1}, ende::math::Vec<2, f32>{1, -1}
+    };
+    for (u32 i = 0; i < 8; i++) {
+        const auto pt = inverseViewProjection.transform(ende::math::Vec4f{
+            offsets[i].x(),
+            offsets[i].y(),
+            i > 4 ? 0.f : 1.f,
+            1
+        });
+        corners[i] = pt / pt.w();
     }
     return corners;
 }

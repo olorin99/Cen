@@ -20,7 +20,7 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
 
         geometryPass.addStorageBufferWrite(params.feedbackBuffer, canta::PipelineStage::MESH_SHADER);
         geometryPass.addColourWrite(params.backbufferImage);
-        geometryPass.addDepthWrite(params.depthImage);
+        geometryPass.addDepthWrite(params.depthImage, { 0, 0, 0, 0 });
 
         geometryPass.setExecuteFunction([params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto command = graph.getBuffer(params.command);
@@ -156,7 +156,7 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
         geometryPass.addStorageBufferRead(params.cameraBuffer, canta::PipelineStage::VERTEX_SHADER);
 
         geometryPass.addColourWrite(params.backbufferImage);
-        geometryPass.addDepthWrite(params.depthImage);
+        geometryPass.addDepthWrite(params.depthImage, { 0, 0, 0, 0 });
 
         geometryPass.setExecuteFunction([params, outputIndicesIndex, drawCommandsIndex] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
