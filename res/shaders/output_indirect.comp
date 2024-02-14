@@ -29,15 +29,9 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) writeonly buffer D
 
 layout (push_constant) uniform Push {
     GlobalDataRef globalDataRef;
-    MeshletBuffer meshletBuffer;
     MeshletInstanceBuffer meshletInstanceBuffer;
-    VertexBuffer vertexBuffer;
-    IndexBuffer indexBuffer;
-    PrimitiveBuffer primitiveBuffer;
     MeshletIndexBuffer meshletIndexBuffer;
     DrawCommandBuffer drawCommandBuffer;
-    TransformsBuffer transformsBuffer;
-    CameraBuffer cameraBuffer;
 };
 
 shared uint sharedIndexOffset;
@@ -61,28 +55,28 @@ void main() {
         return;
     }
 
-    GPUCamera camera = cameraBuffer[globalDataRef.globalData.primaryCamera].camera;
+    GPUCamera camera = globalDataRef.globalData.cameraBufferRef[globalDataRef.globalData.primaryCamera].camera;
     MeshletInstance instance = meshletInstanceBuffer.instances[meshletIndex];
-    Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
+    Meshlet meshlet = globalDataRef.globalData.meshletBufferRef.meshlets[instance.meshletId];
 
     for (uint i = 0; i < MAX_PRIMITIVES_PER_THREAD; i++) {
         uint id = min(threadIndex + i * WORKGROUP_SIZE_X, meshlet.primitiveCount - 1);
 
-        uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 0];
-        uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 1];
-        uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 2];
+        uint a = globalDataRef.globalData.primitiveBufferRef.primitives[meshlet.primitiveOffset + id * 3 + 0];
+        uint b = globalDataRef.globalData.primitiveBufferRef.primitives[meshlet.primitiveOffset + id * 3 + 1];
+        uint c = globalDataRef.globalData.primitiveBufferRef.primitives[meshlet.primitiveOffset + id * 3 + 2];
 
-        uint indexA = indexBuffer.indices[meshlet.indexOffset + a] + meshlet.vertexOffset;
-        uint indexB = indexBuffer.indices[meshlet.indexOffset + b] + meshlet.vertexOffset;
-        uint indexC = indexBuffer.indices[meshlet.indexOffset + c] + meshlet.vertexOffset;
+        uint indexA = globalDataRef.globalData.indexBufferRef.indices[meshlet.indexOffset + a] + meshlet.vertexOffset;
+        uint indexB = globalDataRef.globalData.indexBufferRef.indices[meshlet.indexOffset + b] + meshlet.vertexOffset;
+        uint indexC = globalDataRef.globalData.indexBufferRef.indices[meshlet.indexOffset + c] + meshlet.vertexOffset;
 
-        Vertex vertexA = vertexBuffer.vertices[indexA];
-        Vertex vertexB = vertexBuffer.vertices[indexB];
-        Vertex vertexC = vertexBuffer.vertices[indexC];
+        Vertex vertexA = globalDataRef.globalData.vertexBufferRef.vertices[indexA];
+        Vertex vertexB = globalDataRef.globalData.vertexBufferRef.vertices[indexB];
+        Vertex vertexC = globalDataRef.globalData.vertexBufferRef.vertices[indexC];
 
-        vec4 fragPosA = transformsBuffer.transforms[instance.meshId] * vec4(vertexA.position, 1.0);
-        vec4 fragPosB = transformsBuffer.transforms[instance.meshId] * vec4(vertexB.position, 1.0);
-        vec4 fragPosC = transformsBuffer.transforms[instance.meshId] * vec4(vertexC.position, 1.0);
+        vec4 fragPosA = globalDataRef.globalData.transformsBufferRef.transforms[instance.meshId] * vec4(vertexA.position, 1.0);
+        vec4 fragPosB = globalDataRef.globalData.transformsBufferRef.transforms[instance.meshId] * vec4(vertexB.position, 1.0);
+        vec4 fragPosC = globalDataRef.globalData.transformsBufferRef.transforms[instance.meshId] * vec4(vertexC.position, 1.0);
 
         vec4 clipPosA = camera.projection * camera.view * fragPosA;
         vec4 clipPosB = camera.projection * camera.view * fragPosB;
@@ -145,9 +139,9 @@ void main() {
         if (!sharedCulled[id]) {
             uint index = atomicAdd(sharedPrimitiveId, 1);
 
-            uint a = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 0];
-            uint b = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 1];
-            uint c = primitiveBuffer.primitives[meshlet.primitiveOffset + id * 3 + 2];
+            uint a = globalDataRef.globalData.primitiveBufferRef.primitives[meshlet.primitiveOffset + id * 3 + 0];
+            uint b = globalDataRef.globalData.primitiveBufferRef.primitives[meshlet.primitiveOffset + id * 3 + 1];
+            uint c = globalDataRef.globalData.primitiveBufferRef.primitives[meshlet.primitiveOffset + id * 3 + 2];
 
             uint indexOffset = sharedIndexOffset + index * 3;
             meshletIndexBuffer.indices[indexOffset + 0] = setMeshletId(meshletIndex) | setPrimitiveId(a);

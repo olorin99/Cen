@@ -41,27 +41,18 @@ void cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
 
         cullMeshPass.setExecuteFunction([meshOutputInstanceResource, params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
-            auto transformsBuffer = graph.getBuffer(params.transformBuffer);
-            auto meshBuffer = graph.getBuffer(params.meshBuffer);
             auto meshletInstanceBuffer = graph.getBuffer(meshOutputInstanceResource);
-            auto cameraBuffer = graph.getBuffer(params.cameraBuffer);
 
             cmd.bindPipeline(params.cullMeshesPipeline);
             struct Push {
                 u64 globalDataRef;
-                u64 meshBuffer;
                 u64 meshletInstanceBuffer;
-                u64 transformsBuffer;
-                u64 cameraBuffer;
                 i32 cameraIndex;
                 i32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                 .globalDataRef = globalBuffer->address(),
-                .meshBuffer = meshBuffer->address(),
                 .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                .transformsBuffer = transformsBuffer->address(),
-                .cameraBuffer = cameraBuffer->address(),
                 .cameraIndex = params.cameraIndex
             });
             cmd.dispatchThreads(params.meshCount);
@@ -105,30 +96,21 @@ void cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
         cullMeshletsPass.setExecuteFunction([params, meshCommandResource, meshOutputInstanceResource] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
             auto meshCommandBuffer = graph.getBuffer(meshCommandResource);
-            auto transformsBuffer = graph.getBuffer(params.transformBuffer);
-            auto meshletBuffer = graph.getBuffer(params.meshletBuffer);
             auto meshletInstanceInputBuffer = graph.getBuffer(meshOutputInstanceResource);
             auto meshletInstanceOutputBuffer = graph.getBuffer(params.meshletInstanceBuffer);
-            auto cameraBuffer = graph.getBuffer(params.cameraBuffer);
 
             cmd.bindPipeline(params.culLMeshletsPipeline);
             struct Push {
                 u64 globalDataRef;
-                u64 meshletBuffer;
                 u64 meshletInstanceInputBuffer;
                 u64 meshletInstanceOutputBuffer;
-                u64 transformsBuffer;
-                u64 cameraBuffer;
                 i32 cameraIndex;
                 i32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                 .globalDataRef = globalBuffer->address(),
-                .meshletBuffer = meshletBuffer->address(),
                 .meshletInstanceInputBuffer = meshletInstanceInputBuffer->address(),
                 .meshletInstanceOutputBuffer = meshletInstanceOutputBuffer->address(),
-                .transformsBuffer = transformsBuffer->address(),
-                .cameraBuffer = cameraBuffer->address(),
                 .cameraIndex = params.cameraIndex
             });
             cmd.dispatchIndirect(meshCommandBuffer, 0);

@@ -16,28 +16,23 @@ layout (location = 0) out VsOut {
 
 layout (push_constant) uniform Push {
     GlobalDataRef globalDataRef;
-    MeshletBuffer meshletBuffer;
     MeshletInstanceBuffer meshletInstanceBuffer;
-    VertexBuffer vertexBuffer;
-    IndexBuffer indexBuffer;
     MeshletIndexBuffer meshletIndexBuffer;
-    TransformsBuffer transformsBuffer;
-    CameraBuffer cameraBuffer;
 };
 
 void main() {
 
-    GPUCamera camera = cameraBuffer[globalDataRef.globalData.primaryCamera].camera;
+    GPUCamera camera = globalDataRef.globalData.cameraBufferRef[globalDataRef.globalData.primaryCamera].camera;
 
     uint meshletIndex = meshletIndexBuffer.indices[gl_VertexIndex];
     uint meshletId = getMeshletId(meshletIndex);
     uint primitive = getPrimitiveId(meshletIndex);
     MeshletInstance instance = meshletInstanceBuffer.instances[meshletId];
-    Meshlet meshlet = meshletBuffer.meshlets[instance.meshletId];
-    uint index = indexBuffer.indices[meshlet.indexOffset + primitive];
-    Vertex vertex = vertexBuffer.vertices[index];
+    Meshlet meshlet = globalDataRef.globalData.meshletBufferRef.meshlets[instance.meshletId];
+    uint index = globalDataRef.globalData.indexBufferRef.indices[meshlet.indexOffset + primitive];
+    Vertex vertex = globalDataRef.globalData.vertexBufferRef.vertices[index];
 
-    vec4 fragPos = transformsBuffer.transforms[instance.meshId] * vec4(vertex.position, 1);
+    vec4 fragPos = globalDataRef.globalData.transformsBufferRef.transforms[instance.meshId] * vec4(vertex.position, 1);
 
     gl_Position = camera.projection * camera.view * fragPos;
     vertexOut.drawId = instance.meshId;

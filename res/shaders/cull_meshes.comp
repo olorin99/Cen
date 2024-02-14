@@ -10,16 +10,13 @@
 
 layout (push_constant) uniform Push {
     GlobalDataRef globalDataRef;
-    MeshBuffer meshBuffer;
     MeshletInstanceBuffer meshletInstanceBuffer;
-    TransformsBuffer transformsBuffer;
-    CameraBuffer cameraBuffer;
     int cameraIndex;
     int padding;
 };
 
 bool frustumCheck(vec3 pos, float radius) {
-    GPUCamera cullingCamera = cameraBuffer[cameraIndex].camera;
+    GPUCamera cullingCamera = globalDataRef.globalData.cameraBufferRef[cameraIndex].camera;
 
     for (int i = 0; i < 6; i++) {
         if (dot(vec4(pos, 1.0), cullingCamera.frustum.planes[i]) + radius < 0.0) {
@@ -37,9 +34,9 @@ void main() {
         return;
 
     bool visible = false;
-    GPUMesh mesh = meshBuffer.meshes[threadIndex];
+    GPUMesh mesh = globalDataRef.globalData.meshBufferRef.meshes[threadIndex];
     vec3 center = (mesh.max.xyz + mesh.min.xyz) * 0.5;
-    center = (transformsBuffer.transforms[threadIndex] * vec4(center, 1.0)).xyz;
+    center = (globalDataRef.globalData.transformsBufferRef.transforms[threadIndex] * vec4(center, 1.0)).xyz;
     vec3 halfExtent = (mesh.max.xyz - mesh.min.xyz) * 0.5;
     float radius = length(halfExtent);
     visible = frustumCheck(center, radius);

@@ -25,35 +25,17 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
         geometryPass.setExecuteFunction([params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto command = graph.getBuffer(params.command);
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
-            auto vertexBuffer = graph.getBuffer(params.vertexBuffer);
-            auto indexBuffer = graph.getBuffer(params.indexBuffer);
-            auto primitiveBuffer = graph.getBuffer(params.primitiveBuffer);
-            auto meshletBuffer = graph.getBuffer(params.meshletBuffer);
             auto meshletInstanceBuffer = graph.getBuffer(params.meshletInstanceBuffer);
-            auto transformsBuffer = graph.getBuffer(params.transformBuffer);
-            auto cameraBuffer = graph.getBuffer(params.cameraBuffer);
 
             cmd.bindPipeline(params.meshShadingPipeline);
             cmd.setViewport({ 1920, 1080 });
             struct Push {
                 u64 globalDataRef;
-                u64 meshletBuffer;
                 u64 meshletInstanceBuffer;
-                u64 vertexBuffer;
-                u64 indexBuffer;
-                u64 primitiveBuffer;
-                u64 transformsBuffer;
-                u64 cameraBuffer;
             };
             cmd.pushConstants(canta::ShaderStage::MESH, Push {
-                    .globalDataRef = globalBuffer->address(),
-                    .meshletBuffer = meshletBuffer->address(),
-                    .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                    .vertexBuffer = vertexBuffer->address(),
-                    .indexBuffer = indexBuffer->address(),
-                    .primitiveBuffer = primitiveBuffer->address(),
-                    .transformsBuffer = transformsBuffer->address(),
-                    .cameraBuffer = cameraBuffer->address()
+                .globalDataRef = globalBuffer->address(),
+                .meshletInstanceBuffer = meshletInstanceBuffer->address()
             });
             cmd.drawMeshTasksIndirect(command, 0, 1);
         });
@@ -104,13 +86,7 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
         outputIndexBufferPass.setExecuteFunction([params, outputIndicesIndex, drawCommandsIndex](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto command = graph.getBuffer(params.command);
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
-            auto vertexBuffer = graph.getBuffer(params.vertexBuffer);
-            auto indexBuffer = graph.getBuffer(params.indexBuffer);
-            auto primitiveBuffer = graph.getBuffer(params.primitiveBuffer);
-            auto meshletBuffer = graph.getBuffer(params.meshletBuffer);
             auto meshletInstanceBuffer = graph.getBuffer(params.meshletInstanceBuffer);
-            auto transformsBuffer = graph.getBuffer(params.transformBuffer);
-            auto cameraBuffer = graph.getBuffer(params.cameraBuffer);
 
             auto outputIndexBuffer = graph.getBuffer(outputIndicesIndex);
             auto drawCommandsBuffer = graph.getBuffer(drawCommandsIndex);
@@ -118,27 +94,15 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
             cmd.bindPipeline(params.writePrimitivesPipeline);
             struct Push {
                 u64 globalDataRef;
-                u64 meshletBuffer;
                 u64 meshletInstanceBuffer;
-                u64 vertexBuffer;
-                u64 indexBuffer;
-                u64 primitiveBuffer;
                 u64 outputIndexBuffer;
                 u64 drawCommandsBuffer;
-                u64 transformBuffer;
-                u64 cameraBuffer;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                     .globalDataRef = globalBuffer->address(),
-                    .meshletBuffer = meshletBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                    .vertexBuffer = vertexBuffer->address(),
-                    .indexBuffer = indexBuffer->address(),
-                    .primitiveBuffer = primitiveBuffer->address(),
                     .outputIndexBuffer = outputIndexBuffer->address(),
-                    .drawCommandsBuffer = drawCommandsBuffer->address(),
-                    .transformBuffer = transformsBuffer->address(),
-                    .cameraBuffer = cameraBuffer->address()
+                    .drawCommandsBuffer = drawCommandsBuffer->address()
             });
             cmd.dispatchIndirect(command, 0);
         });
@@ -160,12 +124,7 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
 
         geometryPass.setExecuteFunction([params, outputIndicesIndex, drawCommandsIndex] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
-            auto vertexBuffer = graph.getBuffer(params.vertexBuffer);
-            auto indexBuffer = graph.getBuffer(params.indexBuffer);
-            auto meshletBuffer = graph.getBuffer(params.meshletBuffer);
             auto meshletInstanceBuffer = graph.getBuffer(params.meshletInstanceBuffer);
-            auto transformsBuffer = graph.getBuffer(params.transformBuffer);
-            auto cameraBuffer = graph.getBuffer(params.cameraBuffer);
             auto meshletIndexBuffer = graph.getBuffer(outputIndicesIndex);
             auto drawCommandsBuffer = graph.getBuffer(drawCommandsIndex);
 
@@ -173,23 +132,13 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
             cmd.setViewport({ 1920, 1080 });
             struct Push {
                 u64 globalDataRef;
-                u64 meshletBuffer;
                 u64 meshletInstanceBuffer;
-                u64 vertexBuffer;
-                u64 indexBuffer;
                 u64 meshletIndexBuffer;
-                u64 transformsBuffer;
-                u64 cameraBuffer;
             };
             cmd.pushConstants(canta::ShaderStage::VERTEX, Push {
                     .globalDataRef = globalBuffer->address(),
-                    .meshletBuffer = meshletBuffer->address(),
                     .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                    .vertexBuffer = vertexBuffer->address(),
-                    .indexBuffer = indexBuffer->address(),
-                    .meshletIndexBuffer = meshletIndexBuffer->address(),
-                    .transformsBuffer = transformsBuffer->address(),
-                    .cameraBuffer = cameraBuffer->address()
+                    .meshletIndexBuffer = meshletIndexBuffer->address()
             });
             cmd.drawIndirectCount(drawCommandsBuffer, sizeof(u32), drawCommandsBuffer, 0);
         });
