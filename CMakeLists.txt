@@ -37,7 +37,9 @@ add_library(Cen
         src/passes/MeshletsCullPass.cpp
         src/passes/MeshletsCullPass.h
         src/passes/DebugPasses.cpp
-        src/passes/DebugPasses.h)
+        src/passes/DebugPasses.h
+        src/Material.cpp
+        include/Cen/Material.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)
