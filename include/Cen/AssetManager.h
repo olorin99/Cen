@@ -4,6 +4,7 @@
 #include <tsl/robin_map.h>
 #include <filesystem>
 #include <Cen/Model.h>
+#include <Canta/Device.h>
 
 namespace cen {
 
@@ -19,6 +20,8 @@ namespace cen {
         static auto create(CreateInfo info) -> AssetManager;
 
         AssetManager() = default;
+
+        auto loadImage(const std::filesystem::path& path, canta::Format format) -> canta::ImageHandle;
 
         auto loadModel(const std::filesystem::path& path) -> Model*;
 
@@ -49,6 +52,7 @@ namespace cen {
         };
         std::vector<AssetMetadata> _metadata = {};
 
+        std::vector<canta::ImageHandle> _images = {};
         std::vector<Model> _models = {};
 
     };

@@ -49,7 +49,8 @@ target_include_directories(Cen
     res/shaders
     PRIVATE
     src
+    third_party
 )
-target_link_libraries(Cen Ende Canta fastgltf meshoptimizer)
+target_link_libraries(Cen Ende Canta fastgltf meshoptimizer stb_image)
 
 add_subdirectory(examples)
