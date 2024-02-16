@@ -1,0 +1,8 @@
+{
+  "base_pipeline": "pipelines/visibility_material.pipeline",
+  "materialParameters": "struct MaterialParams { int albedoIndex; };",
+  "materialDefinition": "struct Material { vec4 albedo; };",
+  "materialLoad": "Material loadMaterial(MaterialParams params) { \nMaterial material; \nmaterial.albedo = vec4(params.albedoIndex); \nreturn material; \n}",
+  "lit": { "path": "lit.glsl" },
+  "unlit": { "path": "unlit.gls;" }
+}

@@ -1,4 +1,41 @@
 #include <Cen/Material.h>
+#include <cstring>
+#include <Cen/Engine.h>
+
+auto cen::MaterialInstance::setParameter(std::string_view name, std::span<u8> data) -> bool {
+    auto materialType = _material->_variants[0]->interface().getType("materials");
+    for (auto& memberName : materialType.members) {
+        if (memberName == name) {
+            auto member = _material->_variants[0]->interface().getType(memberName);
+            if (member.size == 0)
+                return false;
+
+            setData(data, member.offset);
+            return true;
+        }
+    }
+    return false;
+}
+
+auto cen::MaterialInstance::getParameter(std::string_view name, u32 size) -> void * {
+    auto materialType = _material->_variants[0]->interface().getType("materials");
+    for (auto& memberName : materialType.members) {
+        if (memberName == name) {
+            auto member = _material->_variants[0]->interface().getType(memberName);
+            if (member.size == 0)
+                return nullptr;
+
+            return _material->_data.data() + _offset + member.offset;
+        }
+    }
+    return nullptr;
+}
+
+void cen::MaterialInstance::setData(std::span<u8> data, u32 offset) {
+    assert(offset + data.size() <= _material->_materialSize);
+    std::memcpy(_material->_data.data() + _offset + offset, data.data(), data.size());
+    _material->_dirty = true;
+}
 
 u32 cen::Material::s_materialId = 0;
 
@@ -10,7 +47,8 @@ auto cen::Material::create(cen::Material::CreateInfo info) -> Material {
     material.setVariant(Variant::LIT, info.lit);
     material.setVariant(Variant::UNLIT, info.unlit);
 
-    material.build();
+    auto res = material.build();
+    assert(res);
     material._materialBuffer = info.engine->device()->createBuffer({
         .size = material.size() * 10,
         .usage = canta::BufferUsage::STORAGE,
@@ -20,6 +58,15 @@ auto cen::Material::create(cen::Material::CreateInfo info) -> Material {
     });
 
     return material;
+}
+
+auto cen::Material::instance() -> MaterialInstance {
+    u32 offset = _data.size();
+    _data.resize(offset + _materialSize);
+    MaterialInstance instance = {};
+    instance._material = this;
+    instance._offset = offset;
+    return instance;
 }
 
 void cen::Material::setVariant(cen::Material::Variant variant, canta::PipelineHandle pipeline) {
@@ -44,5 +91,7 @@ auto cen::Material::build() -> bool {
             return false;
     }
     _materialSize = size;
+    if (_materialSize == 0)
+        return false;
     return true;
 }

@@ -1,7 +1,0 @@
-{
-  "base_pipeline": "pipelines/base.pipeline",
-  "materialParameters": "struct MaterialParams { int albedoIndex; };",
-  "materialDefinition": "struct Material { vec4 albedo; };",
-  "lit": { "path": "shaders/lit.glsl" },
-  "unlit": { "path": "shaders/unlit.gls;" }
-}

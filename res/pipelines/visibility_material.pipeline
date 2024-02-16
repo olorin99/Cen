@@ -1,0 +1,6 @@
+{
+  "compute": {
+    "path": "visibility_buffer/visibility_material.comp",
+    "stage": "COMPUTE"
+  }
+}

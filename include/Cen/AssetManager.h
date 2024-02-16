@@ -4,6 +4,7 @@
 #include <tsl/robin_map.h>
 #include <filesystem>
 #include <Cen/Model.h>
+#include <Cen/Material.h>
 #include <Canta/Device.h>
 
 namespace cen {
@@ -25,11 +26,14 @@ namespace cen {
 
         auto loadModel(const std::filesystem::path& path) -> Model*;
 
+        auto loadMaterial(const std::filesystem::path& path) -> Material*;
+
     private:
 
         enum class AssetType {
             IMAGE,
             MODEL,
+            MATERIAL,
         };
 
         auto getAssetIndex(u32 hash) -> i32;
@@ -54,6 +58,7 @@ namespace cen {
 
         std::vector<canta::ImageHandle> _images = {};
         std::vector<Model> _models = {};
+        std::vector<Material> _materials = {};
 
     };
 

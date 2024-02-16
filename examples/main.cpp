@@ -87,6 +87,8 @@ int main(int argc, char* argv[]) {
         .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180))
     }));
 
+    auto material = engine->assetManager().loadMaterial("materials/pbr/pbr.mat");
+
     ende::thread::ThreadPool threadPool;
 
     cen::Model* model = nullptr;

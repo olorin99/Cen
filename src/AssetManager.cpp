@@ -2,12 +2,13 @@
 #include <Cen/Engine.h>
 
 #include <Ende/math/Quaternion.h>
-
+#include <Ende/filesystem/File.h>
 #include <fastgltf/parser.hpp>
 #include <fastgltf/types.hpp>
 #include <fastgltf/tools.hpp>
 #include <meshoptimizer.h>
 #include <stb_image.h>
+#include <rapidjson/document.h>
 #include <stack>
 #include <span>
 #include <cen.glsl>
@@ -18,6 +19,17 @@ template <>
 struct fastgltf::ElementTraits<ende::math::Vec<2, f32>> : fastgltf::ElementTraitsBase<ende::math::Vec<2, f32>, AccessorType::Vec2, float> {};
 template <>
 struct fastgltf::ElementTraits<ende::math::Vec4f> : fastgltf::ElementTraitsBase<ende::math::Vec4f, AccessorType::Vec4, float> {};
+
+auto findFile(const std::filesystem::path& path, std::span<const std::filesystem::path> searchPaths) -> std::expected<std::filesystem::path, int> {
+    if (std::filesystem::exists(path))
+        return path;
+    for (auto& searchPath : searchPaths) {
+        if (std::filesystem::exists(searchPath / path))
+            return searchPath / path;
+    }
+    return std::unexpected(-1);
+}
+
 
 auto cen::AssetManager::create(cen::AssetManager::CreateInfo info) -> AssetManager {
     AssetManager manager = {};
@@ -42,6 +54,23 @@ auto cen::AssetManager::registerAsset(u32 hash, const std::filesystem::path &pat
         return index;
 
     index = _metadata.size();
+
+    i32 dataIndex = -1;
+    switch (type) {
+        case AssetType::IMAGE:
+            dataIndex = _images.size();
+            _images.push_back({});
+            break;
+        case AssetType::MODEL:
+            dataIndex = _models.size();
+            _models.push_back({});
+            break;
+        case AssetType::MATERIAL:
+            dataIndex = _materials.size();
+            _materials.push_back({});
+            break;
+    }
+
     _assetMap.insert(std::make_pair(hash, index));
     _metadata.push_back({
         hash,
@@ -49,16 +78,8 @@ auto cen::AssetManager::registerAsset(u32 hash, const std::filesystem::path &pat
         path,
         false,
         type,
-        index
+        dataIndex
     });
-
-    switch (type) {
-        case AssetType::IMAGE:
-            break;
-        case AssetType::MODEL:
-            _models.push_back({});
-            break;
-    }
     return index;
 }
 
@@ -69,6 +90,7 @@ auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Form
         index = registerAsset(hash, path, "", AssetType::IMAGE);
 
     assert(index < _metadata.size());
+    assert(_metadata[index].type == AssetType::IMAGE);
     if (_metadata[index].loaded) {
         assert(_metadata[index].index < _models.size());
         return _images[_metadata[index].index];
@@ -112,6 +134,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path) -> Model* {
         index = registerAsset(hash, path, "", AssetType::MODEL);
 
     assert(index < _metadata.size());
+    assert(_metadata[index].type == AssetType::MODEL);
     if (_metadata[index].loaded) {
         assert(_metadata[index].index < _models.size());
         return &_models[_metadata[index].index];
@@ -352,4 +375,85 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path) -> Model* {
     _models[_metadata[index].index] = result;
     _metadata[index].loaded = true;
     return &_models[_metadata[index].index];
+}
+
+auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> Material * {
+    auto hash = std::hash<std::filesystem::path>()(absolute(path));
+    auto index = getAssetIndex(hash);
+    if (index < 0)
+        index = registerAsset(hash, path, "", AssetType::MATERIAL);
+
+    assert(index < _metadata.size());
+    assert(_metadata[index].type == AssetType::MATERIAL);
+    if (_metadata[index].loaded) {
+        assert(_metadata[index].index < _models.size());
+        return &_materials[_metadata[index].index];
+    }
+
+    auto file = ende::fs::File::open(_rootPath / path);
+
+    rapidjson::Document document = {};
+    document.Parse(file->read().c_str());
+    assert(document.IsObject());
+
+    const auto loadMaterialProperty = [rootPath = _rootPath, parentPath = std::filesystem::absolute(_rootPath / path.parent_path())] (rapidjson::Value& node) -> std::string {
+        if (node.IsString())
+            return node.GetString();
+        if (node.IsObject()) {
+            std::filesystem::path path = {};
+            if (node.HasMember("path") && node["path"].IsString())
+                path = node["path"].GetString();
+
+            auto file = ende::fs::File::open(findFile(path, std::to_array({ rootPath, parentPath })).value());
+            return file->read();
+        }
+        return {};
+    };
+
+    const auto macroise = [] (std::string_view str) -> std::string {
+        std::string result = str.data();
+        size_t index = 0;
+        while ((index = result.find('\n', index)) != std::string::npos) {
+            result.insert(index, "\\");
+            index += 2;
+        }
+        return result;
+    };
+
+    if (!document.HasMember("base_pipeline") ||
+        !document.HasMember("materialParameters") ||
+        !document.HasMember("materialDefinition"))
+        return nullptr;
+
+    auto pipelinePath = macroise(loadMaterialProperty(document["base_pipeline"]));
+    auto materialParameters = macroise(loadMaterialProperty(document["materialParameters"]));
+    auto materialDefinition = macroise(loadMaterialProperty(document["materialDefinition"]));
+    auto materialLoad = macroise(loadMaterialProperty(document["materialLoad"]));
+
+    auto material = Material::create({
+        .engine = _engine,
+        .lit = _engine->pipelineManager().getPipeline(_rootPath / pipelinePath, std::to_array({
+            canta::Macro{
+                .name = "materialParameters",
+                .value = materialParameters
+            },
+            canta::Macro{
+                .name = "materialDefinition",
+                .value = materialDefinition
+            },
+            canta::Macro{
+                .name = "materialLoad",
+                .value = materialLoad
+            },
+            canta::Macro{
+                .name = "materialEval",
+                .value = macroise(loadMaterialProperty(document["lit"]))
+            }
+        }))
+    });
+
+
+    _materials[_metadata[index].index] = material;
+    _metadata[index].loaded = true;
+    return &_materials[_metadata[index].index];
 }
