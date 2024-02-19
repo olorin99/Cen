@@ -14,6 +14,26 @@
 #include <cen.glsl>
 
 template <>
+cen::Model &cen::Asset<cen::Model>::operator*() {
+    return _manager->_models[_manager->_metadata[_index].index];
+}
+
+template <>
+cen::Model *cen::Asset<cen::Model>::operator->() {
+    return &_manager->_models[_manager->_metadata[_index].index];
+}
+
+template <>
+cen::Material &cen::Asset<cen::Material>::operator*() {
+    return _manager->_materials[_manager->_metadata[_index].index];
+}
+
+template <>
+cen::Material *cen::Asset<cen::Material>::operator->() {
+    return &_manager->_materials[_manager->_metadata[_index].index];
+}
+
+template <>
 struct fastgltf::ElementTraits<ende::math::Vec3f> : fastgltf::ElementTraitsBase<ende::math::Vec3f, AccessorType::Vec3, float> {};
 template <>
 struct fastgltf::ElementTraits<ende::math::Vec<2, f32>> : fastgltf::ElementTraitsBase<ende::math::Vec<2, f32>, AccessorType::Vec2, float> {};
@@ -92,7 +112,7 @@ auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Form
     assert(index < _metadata.size());
     assert(_metadata[index].type == AssetType::IMAGE);
     if (_metadata[index].loaded) {
-        assert(_metadata[index].index < _models.size());
+        assert(_metadata[index].index < _images.size());
         return _images[_metadata[index].index];
     }
 
@@ -127,7 +147,7 @@ auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Form
     return handle;
 }
 
-auto cen::AssetManager::loadModel(const std::filesystem::path &path) -> Model* {
+auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<Material> material) -> cen::Asset<Model> {
     auto hash = std::hash<std::filesystem::path>()(absolute(path));
     auto index = getAssetIndex(hash);
     if (index < 0)
@@ -137,7 +157,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path) -> Model* {
     assert(_metadata[index].type == AssetType::MODEL);
     if (_metadata[index].loaded) {
         assert(_metadata[index].index < _models.size());
-        return &_models[_metadata[index].index];
+        return { this, index };
     }
 
     fastgltf::Parser parser;
@@ -149,68 +169,78 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path) -> Model* {
                  parser.loadGltf(&data, path.parent_path(), fastgltf::Options::LoadGLBBuffers | fastgltf::Options::LoadExternalBuffers);
 
     if (auto error = asset.error(); error != fastgltf::Error::None) {
-        return nullptr;
+        return {};
     }
 
-//    std::vector<canta::ImageHandle> images = {};
-//    for (auto& assetMaterial : asset->materials) {
-//        if (assetMaterial.pbrData.baseColorTexture.has_value()) {
-//            i32 textureIndex = assetMaterial.pbrData.baseColorTexture->textureIndex;
-//            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
-//            auto& image = asset->images[imageIndex];
-//            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-//                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_SRGB));
-//            }
-////            if (!materialInstance.setParameter("albedoIndex", images.back().index()))
-////                _engine->logger().warn("tried to load \"albedoIndex\" but supplied material does not have appropriate parameter");
-//        } else
-//            materialInstance.setParameter("albedoIndex", -1);
-//
-//
-//        if (assetMaterial.normalTexture.has_value()) {
-//            i32 textureIndex = assetMaterial.normalTexture->textureIndex;
-//            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
-//            auto& image = asset->images[imageIndex];
-//            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-//                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
-//            }
-////            if (!materialInstance.setParameter("normalIndex", images.back().index()))
-////                _engine->logger().warn("tried to load \"normalIndex\" but supplied material does not have appropriate parameter");
-//        } else
-//            materialInstance.setParameter("normalIndex", -1);
-//
-//
-//        if (assetMaterial.pbrData.metallicRoughnessTexture.has_value()) {
-//            i32 textureIndex = assetMaterial.pbrData.metallicRoughnessTexture->textureIndex;
-//            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
-//            auto& image = asset->images[imageIndex];
-//            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-//                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
-//            }
-////            if (!materialInstance.setParameter("metallicRoughnessIndex", images.back().index()))
-////                _engine->logger().warn("tried to load \"metallicRoughnessIndex\" but supplied material does not have appropriate parameter");
-//        } else
-//            materialInstance.setParameter("metallicRoughnessIndex", -1);
-//
-//        if (assetMaterial.emissiveTexture.has_value()) {
-//            i32 textureIndex = assetMaterial.emissiveTexture->textureIndex;
-//            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
-//            auto& image = asset->images[imageIndex];
-//            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-//                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
-//            }
-////            if (!materialInstance.setParameter("emissiveIndex", images.back().index()))
-////                _engine->logger().warn("tried to load \"emissiveIndex\" but supplied material does not have appropriate parameter");
-//        } else
-//            materialInstance.setParameter("emissiveIndex", -1);
-//
-//        if (assetMaterial.emissiveStrength.has_value()) {
-//            f32 emissiveStrength = assetMaterial.emissiveStrength.value();
-//            if (!materialInstance.setParameter("emissiveStrength", emissiveStrength))
+    std::vector<canta::ImageHandle> images = {};
+    std::vector<MaterialInstance> materialInstances = {};
+    for (auto& assetMaterial : asset->materials) {
+        auto materialInstance = material->instance();
+
+        if (assetMaterial.pbrData.baseColorTexture.has_value()) {
+            i32 textureIndex = assetMaterial.pbrData.baseColorTexture->textureIndex;
+            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
+            auto& image = asset->images[imageIndex];
+            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
+                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_SRGB));
+            }
+            if (!materialInstance.setParameter("albedoIndex", images.back().index()))
+                std::printf("tried to load image");
+//                _engine->logger().warn("tried to load \"albedoIndex\" but supplied material does not have appropriate parameter");
+        } else
+            materialInstance.setParameter("albedoIndex", -1);
+
+
+        if (assetMaterial.normalTexture.has_value()) {
+            i32 textureIndex = assetMaterial.normalTexture->textureIndex;
+            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
+            auto& image = asset->images[imageIndex];
+            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
+                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
+            }
+            if (!materialInstance.setParameter("normalIndex", images.back().index()))
+                std::printf("tried to load image");
+//                _engine->logger().warn("tried to load \"normalIndex\" but supplied material does not have appropriate parameter");
+        } else
+            materialInstance.setParameter("normalIndex", -1);
+
+
+        if (assetMaterial.pbrData.metallicRoughnessTexture.has_value()) {
+            i32 textureIndex = assetMaterial.pbrData.metallicRoughnessTexture->textureIndex;
+            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
+            auto& image = asset->images[imageIndex];
+            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
+                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
+            }
+            if (!materialInstance.setParameter("metallicRoughnessIndex", images.back().index()))
+                std::printf("tried to load image");
+//                _engine->logger().warn("tried to load \"metallicRoughnessIndex\" but supplied material does not have appropriate parameter");
+        } else
+            materialInstance.setParameter("metallicRoughnessIndex", -1);
+
+        if (assetMaterial.emissiveTexture.has_value()) {
+            i32 textureIndex = assetMaterial.emissiveTexture->textureIndex;
+            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
+            auto& image = asset->images[imageIndex];
+            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
+                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
+            }
+            if (!materialInstance.setParameter("emissiveIndex", images.back().index()))
+                std::printf("tried to load image");
+//                _engine->logger().warn("tried to load \"emissiveIndex\" but supplied material does not have appropriate parameter");
+        } else
+            materialInstance.setParameter("emissiveIndex", -1);
+
+        if (assetMaterial.emissiveStrength) {
+            f32 emissiveStrength = assetMaterial.emissiveStrength;
+            if (!materialInstance.setParameter("emissiveStrength", emissiveStrength))
+                std::printf("tried to load image");
 //                _engine->logger().warn("tried to load \"emissiveStrength\" but supplied material does not have appropriate parameter");
-//        } else
-//            materialInstance.setParameter("emissiveStrength", 0);
-//    }
+        } else
+            materialInstance.setParameter("emissiveStrength", 0);
+
+        materialInstances.push_back(std::move(materialInstance));
+    }
 
     std::vector<Vertex> vertices = {};
     std::vector<u32> indices = {};
@@ -348,11 +378,16 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path) -> Model* {
             primitives.insert(primitives.end(), meshletPrimitives.begin(), meshletPrimitives.end());
             meshlets.insert(meshlets.end(), meshMeshlets.begin(), meshMeshlets.end());
 
+            MaterialInstance* materialInstance = nullptr;
+            if (primitive.materialIndex.has_value() && materialInstances.size() > primitive.materialIndex.value())
+                materialInstance = &materialInstances[primitive.materialIndex.value()];
+
             meshes.push_back(Mesh{
                     .meshletOffset = firstMeshlet,
                     .meshletCount = static_cast<u32>(meshMeshlets.size()),
                     .min = min,
-                    .max = max
+                    .max = max,
+                    .materialInstance = materialInstance
             });
         }
     }
@@ -372,12 +407,14 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path) -> Model* {
     }
 
     result.meshes = meshes;
-    _models[_metadata[index].index] = result;
+    result.materials = std::move(materialInstances);
+    result.images = images;
+    _models[_metadata[index].index] = std::move(result);
     _metadata[index].loaded = true;
-    return &_models[_metadata[index].index];
+    return { this, index };
 }
 
-auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> Material * {
+auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> cen::Asset<Material> {
     auto hash = std::hash<std::filesystem::path>()(absolute(path));
     auto index = getAssetIndex(hash);
     if (index < 0)
@@ -386,8 +423,8 @@ auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> Mater
     assert(index < _metadata.size());
     assert(_metadata[index].type == AssetType::MATERIAL);
     if (_metadata[index].loaded) {
-        assert(_metadata[index].index < _models.size());
-        return &_materials[_metadata[index].index];
+        assert(_metadata[index].index < _materials.size());
+        return { this, index };
     }
 
     auto file = ende::fs::File::open(_rootPath / path);
@@ -423,7 +460,7 @@ auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> Mater
     if (!document.HasMember("base_pipeline") ||
         !document.HasMember("materialParameters") ||
         !document.HasMember("materialDefinition"))
-        return nullptr;
+        return {};
 
     auto pipelinePath = macroise(loadMaterialProperty(document["base_pipeline"]));
     auto materialParameters = macroise(loadMaterialProperty(document["materialParameters"]));
@@ -455,5 +492,10 @@ auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> Mater
 
     _materials[_metadata[index].index] = material;
     _metadata[index].loaded = true;
-    return &_materials[_metadata[index].index];
+    return { this, index };
+}
+
+void cen::AssetManager::uploadMaterials() {
+    for (auto& material : _materials)
+        material.upload();
 }

@@ -2,7 +2,18 @@
 #include <cstring>
 #include <Cen/Engine.h>
 
-auto cen::MaterialInstance::setParameter(std::string_view name, std::span<u8> data) -> bool {
+cen::MaterialInstance::MaterialInstance(cen::MaterialInstance &&rhs) noexcept {
+    std::swap(_material, rhs._material);
+    std::swap(_offset, rhs._offset);
+}
+
+auto cen::MaterialInstance::operator=(cen::MaterialInstance &&rhs) noexcept -> MaterialInstance & {
+    std::swap(_material, rhs._material);
+    std::swap(_offset, rhs._offset);
+    return *this;
+}
+
+auto cen::MaterialInstance::setParameter(std::string_view name, std::span<const u8> data) -> bool {
     auto materialType = _material->_variants[0]->interface().getType("materials");
     for (auto& memberName : materialType.members) {
         if (memberName == name) {
@@ -31,7 +42,7 @@ auto cen::MaterialInstance::getParameter(std::string_view name, u32 size) -> voi
     return nullptr;
 }
 
-void cen::MaterialInstance::setData(std::span<u8> data, u32 offset) {
+void cen::MaterialInstance::setData(std::span<const u8> data, u32 offset) {
     assert(offset + data.size() <= _material->_materialSize);
     std::memcpy(_material->_data.data() + _offset + offset, data.data(), data.size());
     _material->_dirty = true;
@@ -94,4 +105,16 @@ auto cen::Material::build() -> bool {
     if (_materialSize == 0)
         return false;
     return true;
+}
+
+void cen::Material::upload() {
+    if (_dirty) {
+        if (_data.size() > _materialBuffer->size()) {
+            _materialBuffer = _engine->device()->createBuffer({
+                .size = static_cast<u32>(_data.size())
+            }, _materialBuffer);
+        }
+        _materialBuffer->data(_data);
+        _dirty = false;
+    }
 }

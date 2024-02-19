@@ -91,9 +91,9 @@ int main(int argc, char* argv[]) {
 
     ende::thread::ThreadPool threadPool;
 
-    cen::Model* model = nullptr;
-    threadPool.addJob([&engine, &model, gltfPath] (u64 id) {
-        model = engine->assetManager().loadModel(gltfPath);
+    cen::Asset<cen::Model> model = {};
+    threadPool.addJob([&engine, &model, gltfPath, &material] (u64 id) {
+        model = engine->assetManager().loadModel(gltfPath, material);
     });
 
     auto rootNode = scene.addNode("mesh_root");
@@ -115,6 +115,7 @@ int main(int argc, char* argv[]) {
     engine->uploadBuffer().flushStagedData();
     engine->uploadBuffer().wait();
     engine->uploadBuffer().clearSubmitted();
+    engine->assetManager().uploadMaterials();
 
     f64 milliseconds = 16;
     f64 dt = 1.f / 60;
@@ -129,8 +130,8 @@ int main(int argc, char* argv[]) {
                 case SDL_DROPFILE:
                     char* droppedFile = event.drop.file;
                     std::filesystem::path assetPath = droppedFile;
-                    threadPool.addJob([&engine, &scene, assetPath] (u64 id) {
-                        auto asset = engine->assetManager().loadModel(assetPath);
+                    threadPool.addJob([&engine, &scene, assetPath, &material] (u64 id) {
+                        auto asset = engine->assetManager().loadModel(assetPath, material);
                         engine->uploadBuffer().flushStagedData().wait();
                         if (!asset) return;
                         scene.addModel(assetPath.string(), *asset, cen::Transform::create({}));
@@ -178,8 +179,7 @@ int main(int argc, char* argv[]) {
             renderer.renderSettings().mousePick = false;
 
         engine->device()->beginFrame();
-        engine->device()->gc();
-        engine->pipelineManager().reloadAll();
+        engine->gc();
         scene.prepare();
 
         statisticsWindow.dt = dt;

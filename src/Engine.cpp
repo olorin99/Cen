@@ -47,6 +47,13 @@ auto cen::Engine::create(CreateInfo info) -> std::unique_ptr<Engine> {
     return engine;
 }
 
+void cen::Engine::gc() {
+    assetManager().uploadMaterials();
+    uploadBuffer().flushStagedData();
+    pipelineManager().reloadAll();
+    device()->gc();
+}
+
 auto cen::Engine::setMeshShadingEnabled(bool enabled) -> bool {
     _meshShadingEnabled = _device->meshShadersEnabled() && enabled;
     return _meshShadingEnabled;

@@ -26,6 +26,8 @@ namespace cen {
 
         Engine() = default;
 
+        void gc();
+
         auto device() const -> canta::Device* { return _device.get(); }
 
         auto assetManager() -> AssetManager& { return _assetManager; }

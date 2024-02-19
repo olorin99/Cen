@@ -40,6 +40,8 @@ struct GPUMesh {
     uint meshletCount;
     vec4 min;
     vec4 max;
+    int materialId;
+    uint materialOffset;
 };
 #ifndef __cplusplus
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer MeshBuffer {

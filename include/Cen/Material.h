@@ -14,14 +14,18 @@ namespace cen {
     class MaterialInstance {
     public:
 
+        MaterialInstance(MaterialInstance&& rhs) noexcept;
+
+        auto operator=(MaterialInstance&& rhs) noexcept -> MaterialInstance&;
+
         auto material() const -> Material* { return _material; }
         auto offset() const -> u32 { return _offset; }
 
-        auto setParameter(std::string_view name, std::span<u8> data) -> bool;
+        auto setParameter(std::string_view name, std::span<const u8> data) -> bool;
 
         template<typename T>
         auto setParameter(std::string_view name, const T& data) -> bool {
-            return setParameter(name, { reinterpret_cast<u8*>(&data), sizeof(T) });
+            return setParameter(name, { reinterpret_cast<const u8*>(&data), sizeof(T) });
         }
 
         auto getParameter(std::string_view name, u32 size) -> void*;
@@ -35,7 +39,7 @@ namespace cen {
         }
 
 
-        void setData(std::span<u8> data, u32 offset = 0);
+        void setData(std::span<const u8> data, u32 offset = 0);
 
     private:
         friend Material;
@@ -73,7 +77,10 @@ namespace cen {
 
         auto build() -> bool;
 
+        void upload();
+
     private:
+
         friend MaterialInstance;
 
         static u32 s_materialId;

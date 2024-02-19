@@ -6,6 +6,7 @@
 #include <Ende/math/Mat.h>
 #include <vector>
 #include <string>
+#include <Cen/Material.h>
 
 namespace cen {
 
@@ -14,6 +15,7 @@ namespace cen {
         u32 meshletCount = 0;
         ende::math::Vec4f min;
         ende::math::Vec4f max;
+        MaterialInstance* materialInstance = nullptr;
     };
 
     class Model {
@@ -31,8 +33,8 @@ namespace cen {
         std::vector<Node> nodes = {};
         std::vector<Mesh> meshes = {};
         //TODO: add material support
-//        std::vector<MaterialInstance> materials = {};
-//        std::vector<ImageHandle> images = {};
+        std::vector<MaterialInstance> materials = {};
+        std::vector<canta::ImageHandle> images = {};
 
     };
 

@@ -10,6 +10,36 @@
 namespace cen {
 
     class Engine;
+    class AssetManager;
+
+    template <typename T, typename Manager = AssetManager>
+    class Asset {
+    public:
+
+        Asset() = default;
+
+        T& operator*();
+
+        T* operator->();
+
+        explicit operator bool() const noexcept {
+            if (_index < 0 || !_manager)
+                return false;
+            return _manager->_metadata[_index].loaded;
+        }
+
+    private:
+        friend Manager;
+
+        Asset(Manager* manager, i32 index)
+            : _manager(manager),
+            _index(index)
+        {}
+
+        Manager* _manager = nullptr;
+        i32 _index = 0;
+
+    };
 
     class AssetManager {
     public:
@@ -24,11 +54,15 @@ namespace cen {
 
         auto loadImage(const std::filesystem::path& path, canta::Format format) -> canta::ImageHandle;
 
-        auto loadModel(const std::filesystem::path& path) -> Model*;
+        auto loadModel(const std::filesystem::path& path, Asset<Material> material = {}) -> Asset<Model>;
 
-        auto loadMaterial(const std::filesystem::path& path) -> Material*;
+        auto loadMaterial(const std::filesystem::path& path) -> Asset<Material>;
+
+        void uploadMaterials();
 
     private:
+        friend Asset<Model>;
+        friend Asset<Material>;
 
         enum class AssetType {
             IMAGE,
