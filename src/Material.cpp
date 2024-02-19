@@ -13,6 +13,10 @@ auto cen::MaterialInstance::operator=(cen::MaterialInstance &&rhs) noexcept -> M
     return *this;
 }
 
+auto cen::MaterialInstance::index() const -> u32 {
+    return offset() / material()->size();
+}
+
 auto cen::MaterialInstance::setParameter(std::string_view name, std::span<const u8> data) -> bool {
     auto materialType = _material->_variants[0]->interface().getType("materials");
     for (auto& memberName : materialType.members) {

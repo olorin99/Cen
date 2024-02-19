@@ -20,6 +20,7 @@ namespace cen {
 
         auto material() const -> Material* { return _material; }
         auto offset() const -> u32 { return _offset; }
+        auto index() const -> u32;
 
         auto setParameter(std::string_view name, std::span<const u8> data) -> bool;
 

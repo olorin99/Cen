@@ -24,6 +24,17 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
         .screenSize = { 1920, 1080 }
     };
 
+    renderer._textureSampler = info.engine->device()->createSampler({
+        .filter = canta::Filter::LINEAR,
+        .addressMode = canta::AddressMode::REPEAT
+    });
+    renderer._depthSampler = info.engine->device()->createSampler({
+        .filter = canta::Filter::LINEAR,
+        .addressMode = canta::AddressMode::CLAMP_TO_BORDER,
+        .anisotropy = false,
+        .borderColour = canta::BorderColour::OPAQUE_BLACK_FLOAT
+    });
+
     for (u32 i = 0; auto& buffer : renderer._globalBuffers) {
         buffer = info.engine->device()->createBuffer({
             .size = sizeof(GlobalData),
@@ -196,7 +207,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .name = "visibility_buffer"
     });
     auto backbuffer = _renderGraph.addImage({
-        .format = canta::Format::RGBA8_UNORM,
+        .format = canta::Format::RGBA32_SFLOAT,
         .name = "backbuffer"
     });
 
@@ -246,6 +257,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         auto& materialPass = _renderGraph.addPass("material_pass", canta::PassType::COMPUTE);
 
         materialPass.addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER);
+        materialPass.addSampledRead(depthIndex, canta::PipelineStage::COMPUTE_SHADER);
         materialPass.addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
         materialPass.addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER);
         materialPass.addStorageBufferRead(meshletCullingOutputResource, canta::PipelineStage::COMPUTE_SHADER);
@@ -254,6 +266,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
 
         materialPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto visibilityBufferImage = graph.getImage(visibilityBuffer);
+            auto depthImage = graph.getImage(depthIndex);
             auto backbufferImage = graph.getImage(backbuffer);
             auto globalBuffer = graph.getBuffer(globalBufferResource);
             auto meshletInstanceBuffer = graph.getBuffer(meshletCullingOutputResource);
@@ -264,17 +277,20 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
 
                 struct Push {
                     u64 globalBuffer;
-                    i32 visibilityIndex;
-                    i32 backbufferIndex;
                     u64 meshletInstanceBuffer;
                     u64 materialBuffer;
+                    i32 visibilityIndex;
+                    i32 depthIndex;
+                    i32 backbufferIndex;
+                    i32 padding;
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                         .globalBuffer = globalBuffer->address(),
-                        .visibilityIndex = visibilityBufferImage.index(),
-                        .backbufferIndex = backbufferImage.index(),
                         .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                        .materialBuffer = material.buffer()->address()
+                        .materialBuffer = material.buffer()->address(),
+                        .visibilityIndex = visibilityBufferImage.index(),
+                        .depthIndex = depthImage.index(),
+                        .backbufferIndex = backbufferImage.index(),
                 });
                 cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
             }
@@ -422,6 +438,8 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     _globalData.screenSize = { 1920, 1080 };
     _globalData.primaryCamera = sceneInfo.primaryCamera,
     _globalData.cullingCamera = sceneInfo.cullingCamera;
+    _globalData.textureSampler = _textureSampler.index();
+    _globalData.depthSampler = _depthSampler.index();
     _globalData.meshBufferRef = sceneInfo.meshBuffer->address();
     _globalData.meshletBufferRef = _engine->meshletBuffer()->address();
     _globalData.vertexBufferRef = _engine->vertexBuffer()->address();
@@ -445,7 +463,8 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         _engine->device()->frameSemaphore()->getPair(),
         swapchain->presentSemaphore()->getPair()
     });
-    _renderGraph.execute(waits, signals, true);
+    auto releasedImages = _engine->uploadBuffer().releasedImages();
+    _renderGraph.execute(waits, signals, true, releasedImages);
 
     swapchain->present();
 }

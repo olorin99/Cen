@@ -64,6 +64,9 @@ namespace cen {
         GlobalData _globalData = {};
         FeedbackInfo _feedbackInfo = {};
 
+        canta::SamplerHandle _textureSampler = {};
+        canta::SamplerHandle _depthSampler = {};
+
         canta::BufferHandle _globalBuffers[canta::FRAMES_IN_FLIGHT] = {};
         canta::BufferHandle _feedbackBuffers[canta::FRAMES_IN_FLIGHT] = {};
 

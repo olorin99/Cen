@@ -128,7 +128,7 @@ auto cen::Scene::addMesh(std::string_view name, const cen::Mesh &mesh, const Tra
         .min = mesh.min,
         .max = mesh.max,
         .materialId = mesh.materialInstance ? static_cast<i32>(mesh.materialInstance->material()->id()) : -1,
-        .materialOffset = mesh.materialInstance ? mesh.materialInstance->offset() : 0
+        .materialOffset = mesh.materialInstance ? mesh.materialInstance->index() : 0
     });
     _worldTransforms.push_back(transform.local());
 

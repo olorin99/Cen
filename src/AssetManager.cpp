@@ -126,12 +126,14 @@ auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Form
         data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     }
     length = width * height * canta::formatSize(format);
+    assert(length != 0);
     //TODO: mips
 
     auto handle = _engine->device()->createImage({
         .width = static_cast<u32>(width),
         .height = static_cast<u32>(height),
         .format = format,
+        .usage = canta::ImageUsage::SAMPLED | canta::ImageUsage::TRANSFER_DST | canta::ImageUsage::TRANSFER_SRC,
         .name = path.string()
     });
 
@@ -450,6 +452,16 @@ auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> cen::
         return {};
     };
 
+    const auto removeComments = [] (std::string_view str) -> std::string {
+        std::string result = str.data();
+        size_t index = 0;
+        while ((index = result.find("//", index)) != std::string::npos) {
+            auto endLine = result.find('\n', index + 2);
+            result.erase(index, endLine != std::string::npos ? endLine - index : 2);
+        }
+        return result;
+    };
+
     const auto macroise = [] (std::string_view str) -> std::string {
         std::string result = str.data();
         size_t index = 0;
@@ -468,7 +480,7 @@ auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> cen::
     auto pipelinePath = macroise(loadMaterialProperty(document["base_pipeline"]));
     auto materialParameters = macroise(loadMaterialProperty(document["materialParameters"]));
     auto materialDefinition = macroise(loadMaterialProperty(document["materialDefinition"]));
-    auto materialLoad = macroise(loadMaterialProperty(document["materialLoad"]));
+    auto materialLoad = macroise(removeComments(loadMaterialProperty(document["materialLoad"])));
 
     auto material = Material::create({
         .engine = _engine,

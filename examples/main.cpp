@@ -87,7 +87,7 @@ int main(int argc, char* argv[]) {
         .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180))
     }));
 
-    auto material = engine->assetManager().loadMaterial("materials/pbr/pbr.mat");
+    auto material = engine->assetManager().loadMaterial("materials/blinn_phong/blinn_phong.mat");
 
     ende::thread::ThreadPool threadPool;
 
@@ -100,8 +100,8 @@ int main(int argc, char* argv[]) {
 
     threadPool.wait();
     f32 scale = 4;
-    for (u32 i = 0; i < 30; i++) {
-        for (u32 j = 0; j < 30; j++) {
+    for (u32 i = 0; i < 1; i++) {
+        for (u32 j = 0; j < 1; j++) {
             for (u32 k = 0; k < 1; k++) {
                 for (auto& mesh : model->meshes) {
                     scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({

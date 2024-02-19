@@ -161,6 +161,8 @@ struct GlobalData {
     uvec2 screenSize;
     int cullingCamera;
     int primaryCamera;
+    int textureSampler;
+    int depthSampler;
     MeshBuffer meshBufferRef;
     MeshletBuffer meshletBufferRef;
     VertexBuffer vertexBufferRef;
