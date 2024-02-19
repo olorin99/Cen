@@ -39,7 +39,9 @@ add_library(Cen
         src/passes/DebugPasses.cpp
         src/passes/DebugPasses.h
         src/Material.cpp
-        include/Cen/Material.h)
+        include/Cen/Material.h
+        src/Light.cpp
+        include/Cen/Light.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)

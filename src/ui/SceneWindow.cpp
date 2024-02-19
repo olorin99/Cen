@@ -70,6 +70,26 @@ void nodeTypeCamera(cen::Scene::SceneNode* node, cen::Scene* scene) {
         scene->getCamera(node).setFov(ende::math::rad(fov));
 }
 
+void nodeTypeLight(cen::Scene::SceneNode* node, cen::Scene* scene) {
+    ImGui::Text("Light: %s", node->name.c_str());
+    const char* modes[] = { "DIRECTIONAL", "POINT" };
+    cen::Light::Type types[] = { cen::Light::Type::DIRECTIONAL, cen::Light::Type::POINT };
+    static int modeIndex = 0;
+    if (ImGui::Combo("Type", &modeIndex, modes, 2)) {
+        scene->getLight(node).setType(types[modeIndex]);
+    }
+
+    auto colour = scene->getLight(node).colour();
+    if (ImGui::ColorEdit3("Colour", &colour[0]))
+        scene->getLight(node).setColour(colour);
+    auto intensity = scene->getLight(node).intensity();
+    if (ImGui::DragFloat("Intensity", &intensity, 0.1))
+        scene->getLight(node).setIntensity(intensity);
+    auto radius = scene->getLight(node).radius();
+    if (ImGui::DragFloat("Radius", &radius, 0.1))
+        scene->getLight(node).setRadius(radius);
+}
+
 void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene) {
     for (u32 childIndex = 0; childIndex < node->children.size(); childIndex++) {
         auto& child = node->children[childIndex];
@@ -101,6 +121,19 @@ void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene) {
                     if (renderTransform(child.get())) {
                         scene->getCamera(child.get()).setPosition(child->transform.position());
                         scene->getCamera(child.get()).setRotation(child->transform.rotation());
+                    }
+                    traverseSceneNode(child.get(), scene);
+                    ImGui::TreePop();
+                }
+                break;
+            case cen::Scene::NodeType::LIGHT:
+                if (ImGui::TreeNode(child->name.c_str())) {
+                    nodeTypeLight(child.get(), scene);
+                    child->transform.setPosition(scene->getLight(child.get()).position());
+                    child->transform.setRotation(scene->getLight(child.get()).rotation());
+                    if (renderTransform(child.get())) {
+                        scene->getLight(child.get()).setPosition(child->transform.position());
+                        scene->getLight(child.get()).setRotation(child->transform.rotation());
                     }
                     traverseSceneNode(child.get(), scene);
                     ImGui::TreePop();

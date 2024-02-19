@@ -435,6 +435,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     _globalData.maxMeshCount = sceneInfo.meshCount;
     _globalData.maxMeshletCount = _globalData.maxMeshletCount = 10000000;
     _globalData.maxIndirectIndexCount = 10000000 * 3;
+    _globalData.maxLightCount = sceneInfo.lightCount;
     _globalData.screenSize = { 1920, 1080 };
     _globalData.primaryCamera = sceneInfo.primaryCamera,
     _globalData.cullingCamera = sceneInfo.cullingCamera;
@@ -447,6 +448,7 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     _globalData.primitiveBufferRef = _engine->primitiveBuffer()->address();
     _globalData.transformsBufferRef = sceneInfo.transformBuffer->address();
     _globalData.cameraBufferRef = sceneInfo.cameraBuffer->address();
+    _globalData.lightBufferRef = sceneInfo.lightBuffer->address();
     _globalData.feedbackInfoRef = _feedbackBuffers[flyingIndex]->address();
     _globalBuffers[flyingIndex]->data(_globalData);
 

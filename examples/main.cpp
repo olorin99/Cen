@@ -87,6 +87,8 @@ int main(int argc, char* argv[]) {
         .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180))
     }));
 
+    scene.addLight("direct_light", cen::Light::create({}), cen::Transform::create({}));
+
     auto material = engine->assetManager().loadMaterial("materials/blinn_phong/blinn_phong.mat");
 
     ende::thread::ThreadPool threadPool;
@@ -100,9 +102,9 @@ int main(int argc, char* argv[]) {
 
     threadPool.wait();
     f32 scale = 4;
-    for (u32 i = 0; i < 1; i++) {
-        for (u32 j = 0; j < 1; j++) {
-            for (u32 k = 0; k < 1; k++) {
+    for (u32 i = 0; i < 10; i++) {
+        for (u32 j = 0; j < 10; j++) {
+            for (u32 k = 0; k < 10; k++) {
                 for (auto& mesh : model->meshes) {
                     scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
                         .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }
@@ -180,7 +182,7 @@ int main(int argc, char* argv[]) {
 
         engine->device()->beginFrame();
         engine->gc();
-        scene.prepare();
+        auto sceneInfo = scene.prepare();
 
         statisticsWindow.dt = dt;
         statisticsWindow.milliseconds = milliseconds;
@@ -188,15 +190,7 @@ int main(int argc, char* argv[]) {
         settingsWindow.cameraCount = scene._cameras.size();
         guiWorkspace.render();
 
-        renderer.render({
-            .meshBuffer = scene._meshBuffer[engine->device()->flyingIndex()],
-            .transformBuffer = scene._transformBuffer[engine->device()->flyingIndex()],
-            .cameraBuffer = scene._cameraBuffer[engine->device()->flyingIndex()],
-            .meshCount = scene.meshCount(),
-            .cameraCount = (u32)scene._cameras.size(),
-            .primaryCamera = (u32)scene._primaryCamera,
-            .cullingCamera = (u32)scene._cullingCamera
-        }, &swapchain.value(), &guiWorkspace);
+        renderer.render(sceneInfo, &swapchain.value(), &guiWorkspace);
 
         milliseconds = engine->device()->endFrame();
         dt = milliseconds / 1000.f;

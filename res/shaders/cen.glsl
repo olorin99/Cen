@@ -136,6 +136,21 @@ layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer Ca
 #define CameraBuffer u64
 #endif
 
+struct GPULight {
+    vec3 position;
+    uint type;
+    vec3 colour;
+    float intensity;
+    float radius;
+};
+#ifndef __cplusplus
+layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer LightBuffer {
+    GPULight light;
+};
+#else
+#define LightBuffer u64
+#endif
+
 struct FeedbackInfo {
     uint meshesDrawn;
     uint meshesTotal;
@@ -158,6 +173,7 @@ struct GlobalData {
     uint maxMeshCount;
     uint maxMeshletCount;
     uint maxIndirectIndexCount;
+    uint maxLightCount;
     uvec2 screenSize;
     int cullingCamera;
     int primaryCamera;
@@ -170,6 +186,7 @@ struct GlobalData {
     PrimitiveBuffer primitiveBufferRef;
     TransformsBuffer transformsBufferRef;
     CameraBuffer cameraBufferRef;
+    LightBuffer lightBufferRef;
     FeedbackInfoRef feedbackInfoRef;
 };
 #ifndef __cplusplus

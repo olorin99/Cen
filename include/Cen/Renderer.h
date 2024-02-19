@@ -17,10 +17,12 @@ namespace cen {
         canta::BufferHandle meshBuffer = {};
         canta::BufferHandle transformBuffer = {};
         canta::BufferHandle cameraBuffer = {};
+        canta::BufferHandle lightBuffer = {};
         u32 meshCount = 0;
         u32 cameraCount = 0;
         u32 primaryCamera = 0;
         u32 cullingCamera = 0;
+        u32 lightCount = 0;
     };
 
     class Renderer {

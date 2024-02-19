@@ -34,6 +34,15 @@ auto cen::Scene::create(cen::Scene::CreateInfo info) -> Scene {
             .name = std::format("scene_camera_buffer: {}", i++)
         });
     }
+    for (u32 i = 0; auto& buffer : scene._lightBuffer) {
+        buffer = info.engine->device()->createBuffer({
+            .size = 100 * sizeof(GPULight),
+            .usage = canta::BufferUsage::STORAGE,
+            .type = canta::MemoryType::STAGING,
+            .persistentlyMapped = true,
+            .name = std::format("scene_camera_buffer: {}", i++)
+        });
+    }
 
     scene._mutex = std::make_unique<std::mutex>();
 
@@ -55,7 +64,7 @@ void traverseNode(cen::Scene::SceneNode* node, ende::math::Mat4f worldTransform,
     node->transform.setDirty(false);
 }
 
-void cen::Scene::prepare() {
+auto cen::Scene::prepare() -> SceneInfo {
     std::unique_lock lock(*_mutex);
     u32 flyingIndex = _engine->device()->flyingIndex();
     if (_meshBuffer[flyingIndex]->size() < _meshes.size() * sizeof(GPUMesh)) {
@@ -78,6 +87,11 @@ void cen::Scene::prepare() {
         _gpuCameras.push_back(getCamera(cameraIndex).gpuCamera());
     }
 
+    _gpuLights.clear();
+    for (auto& light : _lights) {
+        _gpuLights.push_back(light.gpuLight());
+    }
+
     _meshBuffer[flyingIndex]->data(_meshes);
     _transformBuffer[flyingIndex]->data(_worldTransforms);
 
@@ -88,7 +102,26 @@ void cen::Scene::prepare() {
     }
     _cameraBuffer[flyingIndex]->data(_gpuCameras);
 
+    if (_lightBuffer[flyingIndex]->size() < _gpuLights.size() * sizeof(GPULight)) {
+        _lightBuffer[flyingIndex] = _engine->device()->createBuffer({
+            .size = static_cast<u32>(_gpuLights.size() * sizeof(GPULight))
+        }, _lightBuffer[flyingIndex]);
+    }
+    _lightBuffer[flyingIndex]->data(_gpuLights);
+
     _meshCount = _meshes.size();
+
+    return {
+        .meshBuffer = _meshBuffer[flyingIndex],
+        .transformBuffer = _transformBuffer[flyingIndex],
+        .cameraBuffer = _cameraBuffer[flyingIndex],
+        .lightBuffer = _lightBuffer[flyingIndex],
+        .meshCount = meshCount(),
+        .cameraCount = static_cast<u32>(_gpuCameras.size()),
+        .primaryCamera = static_cast<u32>(_primaryCamera),
+        .cullingCamera = static_cast<u32>(_cullingCamera),
+        .lightCount = static_cast<u32>(_gpuLights.size())
+    };
 }
 
 auto cen::Scene::addNode(std::string_view name, const cen::Transform &transform, cen::Scene::SceneNode *parent) -> SceneNode * {
@@ -197,4 +230,31 @@ void cen::Scene::setPrimaryCamera(cen::Scene::SceneNode *node) {
 
 void cen::Scene::setCullingCamera(cen::Scene::SceneNode *node) {
     _cullingCamera = node->index;
+}
+
+auto cen::Scene::addLight(std::string_view name, const cen::Light &light, const cen::Transform &transform, cen::Scene::SceneNode *parent) -> SceneNode * {
+    std::unique_lock lock(*_mutex);
+    auto index = _lights.size();
+    _lights.push_back(light);
+
+    auto node = std::make_unique<SceneNode>();
+    node->type = NodeType::LIGHT;
+    node->transform = transform;
+    node->worldTransform = transform.local();
+    node->name = name;
+    node->index = index;
+
+    if (parent) {
+        node->parent = parent;
+        parent->children.push_back(std::move(node));
+        return parent->children.back().get();
+    } else {
+        node->parent = _rootNode.get();
+        _rootNode->children.push_back(std::move(node));
+        return _rootNode->children.back().get();
+    }
+}
+
+auto cen::Scene::getLight(cen::Scene::SceneNode *node) -> Light & {
+    return _lights[node->index];
 }

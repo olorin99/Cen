@@ -145,7 +145,7 @@ void main() {
 
     const MaterialParams materialParams = materialBuffer.materials[mesh.materialOffset];
     const Material material = loadMaterial(materialParams, values, globalDataRef.globalData);
-    const vec4 colour = evalMaterial(material);
+    const vec4 colour = evalMaterial(material, values, globalDataRef.globalData);
     const vec3 result = colour.xyz;
 
     imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(result, 1.0));

@@ -8,6 +8,8 @@
 #include <Cen/Model.h>
 #include <Cen/Transform.h>
 #include <Cen/Camera.h>
+#include <Cen/Light.h>
+#include <Cen/Renderer.h>
 #include <mutex>
 
 namespace cen {
@@ -23,7 +25,7 @@ namespace cen {
 //        Scene(Scene&& rhs) noexcept;
 //        auto operator=(Scene&& rhs) noexcept -> Scene&;
 
-        void prepare();
+        auto prepare() -> SceneInfo;
 
         auto meshCount() const -> u32 { return _meshCount; }
         auto maxMeshlets() const -> u32 { return _maxMeshlets; }
@@ -64,6 +66,9 @@ namespace cen {
         void setPrimaryCamera(SceneNode* node);
         void setCullingCamera(SceneNode* node);
 
+        auto addLight(std::string_view name, const Light& light, const Transform& transform, SceneNode* parent = nullptr) -> SceneNode*;
+        auto getLight(SceneNode* node) -> Light&;
+
 //    private:
 
         Engine* _engine = nullptr;
@@ -73,14 +78,18 @@ namespace cen {
         std::vector<GPUMesh> _meshes = {};
         std::vector<ende::math::Mat4f> _worldTransforms = {};
         std::vector<GPUCamera> _gpuCameras = {};
+        std::vector<GPULight> _gpuLights = {};
 
         std::vector<Camera> _cameras = {};
         i32 _primaryCamera = -1;
         i32 _cullingCamera = -1;
 
+        std::vector<Light> _lights = {};
+
         canta::BufferHandle _meshBuffer[canta::FRAMES_IN_FLIGHT] = {};
         canta::BufferHandle _transformBuffer[canta::FRAMES_IN_FLIGHT] = {};
         canta::BufferHandle _cameraBuffer[canta::FRAMES_IN_FLIGHT] = {};
+        canta::BufferHandle _lightBuffer[canta::FRAMES_IN_FLIGHT] = {};
 
         u32 _meshCount = 0;
         u32 _maxMeshlets = 0;
