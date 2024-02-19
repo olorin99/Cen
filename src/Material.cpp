@@ -77,6 +77,25 @@ auto cen::Material::instance() -> MaterialInstance {
     MaterialInstance instance = {};
     instance._material = this;
     instance._offset = offset;
+
+    auto materialType = _variants[0]->interface().getType("materials");
+    for (auto& memberName : materialType.members) {
+        auto member = _variants[0]->interface().getType(memberName);
+        switch (member.type) {
+            case canta::ShaderInterface::MemberType::INT:
+                instance.setParameter(memberName, -1);
+                break;
+            case canta::ShaderInterface::MemberType::FLOAT:
+                instance.setParameter(memberName, 0);
+                break;
+            case canta::ShaderInterface::MemberType::VEC3F:
+                instance.setParameter(memberName, ende::math::Vec3f{ 0, 0, 0 });
+                break;
+            case canta::ShaderInterface::MemberType::VEC4F:
+                instance.setParameter(memberName, ende::math::Vec4f{ 0, 0, 0, 0 });
+                break;
+        }
+    }
     return instance;
 }
 
@@ -84,7 +103,7 @@ void cen::Material::setVariant(cen::Material::Variant variant, canta::PipelineHa
     _variants[static_cast<u8>(variant)] = pipeline;
 }
 
-auto cen::Material::getVariant(cen::Material::Variant variant) -> canta::PipelineHandle {
+auto cen::Material::getVariant(cen::Material::Variant variant) const -> canta::PipelineHandle {
     return _variants[static_cast<u8>(variant)];
 }
 

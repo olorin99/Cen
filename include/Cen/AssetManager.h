@@ -60,6 +60,8 @@ namespace cen {
 
         void uploadMaterials();
 
+        auto materials() const -> std::span<const Material> { return _materials; }
+
     private:
         friend Asset<Model>;
         friend Asset<Material>;

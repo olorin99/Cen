@@ -19,7 +19,7 @@ materialLoad;
 materialEval;
 
 layout (scalar, buffer_reference, buffer_reference_align = 4) buffer MaterialBuffer {
-    Material materials[];
+    MaterialParams materials[];
 };
 
 layout (push_constant) uniform PushData {
@@ -69,13 +69,17 @@ void main() {
 
     uint visibility = imageLoad(storageImages[visibilityImageIndex], globCoords).r;
     if (visibility == 0) {
-        imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(1.0));
+        imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(0.0));
         return;
     }
 
     uint meshletId = getMeshletId(visibility);
     uint primitiveId = getPrimitiveId(visibility);
     MeshletInstance instance = meshletInstanceBuffer.instances[meshletId];
+
+    const GPUMesh mesh = globalDataRef.globalData.meshBufferRef.meshes[instance.meshId];
+    if (mesh.materialId < 0)
+        return;
 
     const Meshlet meshlet = globalDataRef.globalData.meshletBufferRef.meshlets[instance.meshletId];
     const uint[] indices = loadIndices(meshlet, primitiveId);
@@ -112,11 +116,10 @@ void main() {
     );
     const UVGradient uvGrad = calcUVDerivitives(derivitives, uvs);
 
-    vec3 d = abs(derivitives.ddx) + abs(derivitives.ddy);
-    float width = 1;
-    vec3 a3 = smoothstep(d * (width - 0.5), d * (width + 0.5), derivitives.lambda);
-
-    vec3 result = vec3(min(min(a3.x, a3.y), a3.z));
+    const MaterialParams materialParams = materialBuffer.materials[mesh.materialOffset];
+    const Material material = loadMaterial(materialParams);
+    const vec4 colour = evalMaterial(material);
+    const vec3 result = colour.xyz;
 
     imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(result, 1.0));
 }

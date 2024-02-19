@@ -131,6 +131,11 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     auto flyingIndex = _engine->device()->flyingIndex();
     _renderGraph.reset();
 
+    bool debugEnabled = _renderSettings.debugMeshletId ||
+                        _renderSettings.debugPrimitiveId ||
+                        _renderSettings.debugMeshId ||
+                        _renderSettings.debugWireframe;
+
     auto swapchainImage = swapchain->acquire();
     auto swapchainResource = _renderGraph.addImage({
         .handle = swapchainImage.value(),
@@ -237,7 +242,44 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     auto backbufferClear = _renderGraph.addAlias(backbuffer);
     _renderGraph.addClearPass("clear_backbuffer", backbufferClear);
 
-    _renderSettings.debugMeshletId = (!_renderSettings.debugPrimitiveId && !_renderSettings.debugMeshId && !_renderSettings.debugWireframe);
+    if (!debugEnabled) {
+        auto& materialPass = _renderGraph.addPass("material_pass", canta::PassType::COMPUTE);
+
+        materialPass.addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER);
+        materialPass.addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+        materialPass.addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER);
+        materialPass.addStorageBufferRead(meshletCullingOutputResource, canta::PipelineStage::COMPUTE_SHADER);
+
+        materialPass.addStorageImageWrite(backbuffer, canta::PipelineStage::COMPUTE_SHADER);
+
+        materialPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            auto visibilityBufferImage = graph.getImage(visibilityBuffer);
+            auto backbufferImage = graph.getImage(backbuffer);
+            auto globalBuffer = graph.getBuffer(globalBufferResource);
+            auto meshletInstanceBuffer = graph.getBuffer(meshletCullingOutputResource);
+
+
+            for (auto& material : _engine->assetManager().materials()) {
+                cmd.bindPipeline(material.getVariant(Material::Variant::LIT));
+
+                struct Push {
+                    u64 globalBuffer;
+                    i32 visibilityIndex;
+                    i32 backbufferIndex;
+                    u64 meshletInstanceBuffer;
+                    u64 materialBuffer;
+                };
+                cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                        .globalBuffer = globalBuffer->address(),
+                        .visibilityIndex = visibilityBufferImage.index(),
+                        .backbufferIndex = backbufferImage.index(),
+                        .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                        .materialBuffer = material.buffer()->address()
+                });
+                cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
+            }
+        });
+    }
 
     if (_renderSettings.debugMeshletId) {
         passes::debugVisibilityBuffer(_renderGraph, {

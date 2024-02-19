@@ -64,6 +64,7 @@ namespace cen {
 
         auto id() const -> u32 { return _id; }
         auto size() const -> u32 { return _materialSize; }
+        auto buffer() const -> canta::BufferHandle { return _materialBuffer; }
 
         auto instance() -> MaterialInstance;
 
@@ -73,7 +74,7 @@ namespace cen {
             MAX
         };
         void setVariant(Variant variant, canta::PipelineHandle pipeline);
-        auto getVariant(Variant variant) -> canta::PipelineHandle;
+        auto getVariant(Variant variant) const -> canta::PipelineHandle;
 
         auto build() -> bool;
 

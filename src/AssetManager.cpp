@@ -242,6 +242,9 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
         materialInstances.push_back(std::move(materialInstance));
     }
 
+    if (materialInstances.empty())
+        materialInstances.push_back(material->instance());
+
     std::vector<Vertex> vertices = {};
     std::vector<u32> indices = {};
     std::vector<Meshlet> meshlets = {};
@@ -378,7 +381,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             primitives.insert(primitives.end(), meshletPrimitives.begin(), meshletPrimitives.end());
             meshlets.insert(meshlets.end(), meshMeshlets.begin(), meshMeshlets.end());
 
-            MaterialInstance* materialInstance = nullptr;
+            MaterialInstance* materialInstance = &materialInstances.front();
             if (primitive.materialIndex.has_value() && materialInstances.size() > primitive.materialIndex.value())
                 materialInstance = &materialInstances[primitive.materialIndex.value()];
 
