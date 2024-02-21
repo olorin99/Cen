@@ -342,6 +342,21 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
             })
         }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
     }
+    if (_renderSettings.debugMaterialId) {
+        passes::debugVisibilityBuffer(_renderGraph, {
+            .name = "debug_materialId",
+            .visibilityBuffer = visibilityBuffer,
+            .backbuffer = backbuffer,
+            .globalBuffer = globalBufferResource,
+            .meshletInstanceBuffer = meshletCullingOutputResource,
+            .pipeline = _engine->pipelineManager().getPipeline({
+                .compute = { .module = _engine->pipelineManager().getShader({
+                    .path = "debug/materialId.comp",
+                    .stage = canta::ShaderStage::COMPUTE
+                })}
+            })
+        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+    }
     if (_renderSettings.debugFrustumIndex >= 0) {
         passes::debugFrustum(_renderGraph, {
             .backbuffer = backbuffer,

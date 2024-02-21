@@ -45,6 +45,7 @@ namespace cen {
             bool debugMeshletId = false;
             bool debugPrimitiveId = false;
             bool debugMeshId = false;
+            bool debugMaterialId = false;
             bool debugWireframe = false;
             i32 debugFrustumIndex = -1;
             f32 debugLineWidth = 1;

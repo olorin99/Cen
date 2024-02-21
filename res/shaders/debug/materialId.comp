@@ -1,0 +1,52 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference2 : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
+
+#include "canta.glsl"
+#include "cen.glsl"
+#include "visibility_buffer/visibility.glsl"
+
+layout (rg32ui, set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform readonly uimage2D storageImages[];
+layout (set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform writeonly image2D storageImagesOutput[];
+
+layout (push_constant) uniform PushData {
+    GlobalDataRef globalDataRef;
+    int visibilityImageIndex;
+    int backbufferIndex;
+    MeshletInstanceBuffer meshletInstanceBuffer;
+};
+
+vec3 hue2rgb(float hue) {
+    hue = fract(hue);
+    float r = abs(hue * 6 - 3) - 1;
+    float g = 2 - abs(hue * 6 - 2);
+    float b = 2 - abs(hue * 6 - 4);
+    return clamp(vec3(r, g, b), vec3(0), vec3(1));
+}
+
+layout (local_size_x = 32, local_size_y = 32) in;
+void main() {
+
+    ivec2 globCoords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 outputSize = imageSize(storageImagesOutput[backbufferIndex]);
+    if (any(greaterThanEqual(globCoords, outputSize)))
+        return;
+
+    ivec2 inputSize = imageSize(storageImages[visibilityImageIndex]);
+
+    uint visibility = imageLoad(storageImages[visibilityImageIndex], globCoords).r;
+    if (visibility == 0)
+        return;
+
+    uint meshletId = getMeshletId(visibility);
+    MeshletInstance instance = meshletInstanceBuffer.instances[meshletId];
+    const GPUMesh mesh = globalDataRef.globalData.meshBufferRef.meshes[instance.meshId];
+
+    vec3 result = hue2rgb(mesh.materialId * 1.71f);
+
+    imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(result, 1.0));
+}
