@@ -10,6 +10,7 @@
 #include <Cen/ui/SettingsWindow.h>
 #include <Cen/ui/StatisticsWindow.h>
 #include <Cen/ui/SceneWindow.h>
+#include <Cen/ui/ViewportWindow.h>
 
 #include <Ende/thread/ThreadPool.h>
 
@@ -59,9 +60,13 @@ int main(int argc, char* argv[]) {
     sceneWindow.scene = &scene;
     sceneWindow.name = "Scene";
 
+    cen::ui::ViewportWindow viewportWindow = {};
+    viewportWindow._renderer = &renderer;
+
     guiWorkspace.addWindow(&settingsWindow);
     guiWorkspace.addWindow(&statisticsWindow);
     guiWorkspace.addWindow(&sceneWindow);
+    guiWorkspace.addWindow(&viewportWindow);
 
     auto camera = cen::Camera::create({
         .position = { 0, 0, 2 },
@@ -119,6 +124,10 @@ int main(int argc, char* argv[]) {
     engine->uploadBuffer().clearSubmitted();
     engine->assetManager().uploadMaterials();
 
+    canta::ImageHandle backbufferImage = {};
+
+    cen::ui::GuiWorkspace* guiPointer = &guiWorkspace;
+
     f64 milliseconds = 16;
     f64 dt = 1.f / 60;
     bool running = true;
@@ -129,7 +138,7 @@ int main(int argc, char* argv[]) {
                 case SDL_QUIT:
                     running = false;
                     break;
-                case SDL_DROPFILE:
+                case SDL_DROPFILE: {
                     char* droppedFile = event.drop.file;
                     std::filesystem::path assetPath = droppedFile;
                     threadPool.addJob([&engine, &scene, assetPath, &material] (u64 id) {
@@ -139,6 +148,17 @@ int main(int argc, char* argv[]) {
                         scene.addModel(assetPath.string(), *asset, cen::Transform::create({}));
                     });
                     SDL_free(droppedFile);
+                }
+                    break;
+                case SDL_KEYDOWN:
+                    switch (event.key.keysym.scancode) {
+                        case SDL_SCANCODE_U:
+                            if (guiPointer)
+                                guiPointer = nullptr;
+                            else
+                                guiPointer = &guiWorkspace;
+                            break;
+                    }
                     break;
             }
             guiWorkspace.context().processEvent(&event);
@@ -169,28 +189,18 @@ int main(int argc, char* argv[]) {
                 scene.primaryCamera().setRotation(ende::math::Quaternion(cameraRotation.right(), ende::math::rad(45) * dt) * cameraRotation);
         }
 
-
-        i32 mouseX = 0;
-        i32 mouseY = 0;
-        auto mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-        if (mouseState == SDL_BUTTON_LEFT) {
-            renderer.renderSettings().mousePick = true;
-            renderer.renderSettings().mouseX = mouseX;
-            renderer.renderSettings().mouseY = mouseY;
-        } else
-            renderer.renderSettings().mousePick = false;
-
         engine->device()->beginFrame();
         engine->gc();
         auto sceneInfo = scene.prepare();
 
         statisticsWindow.dt = dt;
         statisticsWindow.milliseconds = milliseconds;
+        viewportWindow.setBackbuffer(backbufferImage);
 
         settingsWindow.cameraCount = scene._cameras.size();
         guiWorkspace.render();
 
-        renderer.render(sceneInfo, &swapchain.value(), &guiWorkspace);
+        backbufferImage = renderer.render(sceneInfo, &swapchain.value(), guiPointer);
 
         milliseconds = engine->device()->endFrame();
         dt = milliseconds / 1000.f;

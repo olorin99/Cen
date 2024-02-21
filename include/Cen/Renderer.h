@@ -36,7 +36,7 @@ namespace cen {
         static auto create(CreateInfo info) -> Renderer;
 
 
-        void render(const SceneInfo& sceneInfo, canta::Swapchain* swapchain, ui::GuiWorkspace* guiWorkspace);
+        auto render(const SceneInfo& sceneInfo, canta::Swapchain* swapchain, ui::GuiWorkspace* guiWorkspace) -> canta::ImageHandle;
 
         auto renderGraph() -> canta::RenderGraph& { return _renderGraph; }
         auto feedbackInfo() -> FeedbackInfo { return _feedbackInfo; }

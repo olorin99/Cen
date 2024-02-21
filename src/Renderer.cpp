@@ -138,7 +138,7 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
     return renderer;
 }
 
-void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* swapchain, ui::GuiWorkspace* guiWorkspace) {
+auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* swapchain, ui::GuiWorkspace* guiWorkspace) -> canta::ImageHandle {
     auto flyingIndex = _engine->device()->flyingIndex();
     _renderGraph.reset();
 
@@ -409,14 +409,12 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         });
     }
 
-
-    _renderGraph.addBlitPass("backbuffer_to_swapchain", backbuffer, swapchainResource);
-
     if (guiWorkspace) {
         auto uiSwapchainIndex = _renderGraph.addAlias(swapchainResource);
 
         auto& uiPass = _renderGraph.addPass("ui", canta::PassType::GRAPHICS);
 
+        uiPass.addColourRead(backbuffer);
         uiPass.addColourRead(swapchainResource);
 
         uiPass.addColourWrite(uiSwapchainIndex);
@@ -426,8 +424,10 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         });
 
         _renderGraph.setBackbuffer(uiSwapchainIndex);
-    } else
+    } else {
+        _renderGraph.addBlitPass("backbuffer_to_swapchain", backbuffer, swapchainResource);
         _renderGraph.setBackbuffer(swapchainResource);
+    }
 
     std::memcpy(&_feedbackInfo, _feedbackBuffers[flyingIndex]->mapped().address(), sizeof(FeedbackInfo));
     std::memset(_feedbackBuffers[flyingIndex]->mapped().address(), 0, sizeof(FeedbackInfo));
@@ -469,4 +469,6 @@ void cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     _renderGraph.execute(waits, signals, true, releasedImages);
 
     swapchain->present();
+
+    return _renderGraph.getImage(backbuffer);
 }

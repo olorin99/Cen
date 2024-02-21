@@ -41,7 +41,11 @@ add_library(Cen
         src/Material.cpp
         include/Cen/Material.h
         src/Light.cpp
-        include/Cen/Light.h)
+        include/Cen/Light.h
+        src/ui/ViewportWindow.cpp
+        include/Cen/ui/ViewportWindow.h
+        src/ui/ImageWidget.cpp
+        include/Cen/ui/ImageWidget.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)

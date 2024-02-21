@@ -24,11 +24,12 @@ void cen::ui::GuiWorkspace::render() {
 
         const ImGuiWindowFlags windowFlags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
                                              ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
-                                             ImGuiWindowFlags_NoNavFocus;
+                                             ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0,0,0,0));
 
         ImGui::Begin("Main", nullptr, windowFlags);
 
@@ -46,6 +47,7 @@ void cen::ui::GuiWorkspace::render() {
             ImGui::EndMainMenuBar();
         }
 
+        ImGui::PopStyleColor(1);
         ImGui::PopStyleVar(3);
 
         ImGuiID dockspaceID = ImGui::GetID("dockspace");
