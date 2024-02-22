@@ -107,9 +107,9 @@ int main(int argc, char* argv[]) {
 
     threadPool.wait();
     f32 scale = 4;
-    for (u32 i = 0; i < 10; i++) {
-        for (u32 j = 0; j < 10; j++) {
-            for (u32 k = 0; k < 10; k++) {
+    for (u32 i = 0; i < 1; i++) {
+        for (u32 j = 0; j < 1; j++) {
+            for (u32 k = 0; k < 1; k++) {
                 for (auto& mesh : model->meshes) {
                     scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
                         .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }

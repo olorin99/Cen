@@ -4,7 +4,7 @@
 
 bool renderTransform(cen::Scene::SceneNode* node) {
     auto position = node->transform.position();
-    auto eulerAnglesRad = node->transform.rotation().toEuler();
+    auto eulerAnglesRad = node->transform.rotation().unit().toEuler();
     auto eulerAnglesDeg = ende::math::Vec3f{
             static_cast<f32>(ende::math::deg(eulerAnglesRad.x())),
             static_cast<f32>(ende::math::deg(eulerAnglesRad.y())),
