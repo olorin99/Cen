@@ -12,6 +12,7 @@
 layout (location = 0) out VsOut {
     flat uint drawId;
     flat uint meshletId;
+    vec2 uv;
 } vertexOut;
 
 layout (push_constant) uniform Push {
@@ -37,4 +38,5 @@ void main() {
     gl_Position = camera.projection * camera.view * fragPos;
     vertexOut.drawId = instance.meshId;
     vertexOut.meshletId = meshletId;
+    vertexOut.uv = vertex.uv;
 }

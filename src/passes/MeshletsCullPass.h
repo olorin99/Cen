@@ -17,13 +17,16 @@ namespace cen::passes {
         u32 maxMeshletInstancesCount;
         u32 meshCount;
         i32 cameraIndex;
+        bool testAlpha;
         canta::PipelineHandle cullMeshesPipeline;
         canta::PipelineHandle writeMeshletCullCommandPipeline;
         canta::PipelineHandle culLMeshletsPipeline;
         canta::PipelineHandle writeMeshletDrawCommandPipeline;
+        std::string_view name;
+        std::optional<canta::ImageIndex> read = {};
     };
 
-    void cullMeshlets(canta::RenderGraph& graph, CullMeshletsParams params);
+    auto cullMeshlets(canta::RenderGraph& graph, CullMeshletsParams params) -> canta::RenderPass&;
 
 }
 

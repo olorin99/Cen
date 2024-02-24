@@ -241,6 +241,9 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
         } else
             materialInstance.setParameter("emissiveStrength", 0);
 
+        if (assetMaterial.alphaMode != fastgltf::AlphaMode::Opaque && assetMaterial.alphaCutoff < 1)
+            materialInstance.setTransparent(true);
+
         materialInstances.push_back(std::move(materialInstance));
     }
 
@@ -387,12 +390,18 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             if (primitive.materialIndex.has_value() && materialInstances.size() > primitive.materialIndex.value())
                 materialInstance = &materialInstances[primitive.materialIndex.value()];
 
+            i32 alphaMapIndex = -1;
+            if (materialInstance->isTransparent()) {
+                alphaMapIndex = materialInstance->getParameter<i32>("albedoIndex");
+            }
+
             meshes.push_back(Mesh{
                     .meshletOffset = firstMeshlet,
                     .meshletCount = static_cast<u32>(meshMeshlets.size()),
                     .min = min,
                     .max = max,
-                    .materialInstance = materialInstance
+                    .materialInstance = materialInstance,
+                    .alphaMapIndex = alphaMapIndex
             });
         }
     }

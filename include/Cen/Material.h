@@ -22,6 +22,9 @@ namespace cen {
         auto offset() const -> u32 { return _offset; }
         auto index() const -> u32;
 
+        void setTransparent(bool transparent) { _transparent = transparent; }
+        auto isTransparent() const -> bool { return _transparent; }
+
         auto setParameter(std::string_view name, std::span<const u8> data) -> bool;
 
         template<typename T>
@@ -49,6 +52,7 @@ namespace cen {
 
         Material* _material = nullptr;
         u32 _offset = 0;
+        bool _transparent = false;
 
     };
 

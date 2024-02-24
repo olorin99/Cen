@@ -2,30 +2,31 @@
 #include <cen.glsl>
 #include <Ende/util/colour.h>
 
-void cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshletsParams params) {
-    auto cullGroup = graph.getGroup("cull_meshlets", ende::util::rgb(7, 91, 79));
+auto cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshletsParams params) -> canta::RenderPass& {
+    auto cullGroup = graph.getGroup(params.name, ende::util::rgb(7, 91, 79));
 
     auto meshOutputInstanceResource = graph.addBuffer({
-        .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * params.maxMeshletInstancesCount),
+        .size = static_cast<u32>((sizeof(u32) * 2) + sizeof(MeshletInstance) * params.maxMeshletInstancesCount),
         .name = "mesh_output_instances"
     });
 
     auto meshCullingOutputClear = graph.addAlias(meshOutputInstanceResource);
     auto meshletCullingOutputClear = graph.addAlias(params.meshletInstanceBuffer);
     auto meshCommandResource = graph.addAlias(params.outputCommand);
-    {
-        auto& clearMeshPass = graph.addPass("clear_mesh", canta::PassType::TRANSFER, cullGroup);
+    auto& clearMeshPass = graph.addPass("clear_mesh", canta::PassType::TRANSFER, cullGroup);
 
-        clearMeshPass.addTransferWrite(meshCullingOutputClear);
-        clearMeshPass.addTransferWrite(meshletCullingOutputClear);
+    if (params.read)
+        clearMeshPass.addStorageImageRead(params.read.value(), canta::PipelineStage::COMPUTE_SHADER);
 
-        clearMeshPass.setExecuteFunction([meshCullingOutputClear, meshletCullingOutputClear] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
-            auto meshletInstanceBuffer = graph.getBuffer(meshCullingOutputClear);
-            auto meshletInstanceBuffer2 = graph.getBuffer(meshletCullingOutputClear);
-            cmd.clearBuffer(meshletInstanceBuffer, 0, 0, sizeof(u32));
-            cmd.clearBuffer(meshletInstanceBuffer2, 0, 0, sizeof(u32));
-        });
-    }
+    clearMeshPass.addTransferWrite(meshCullingOutputClear);
+    clearMeshPass.addTransferWrite(meshletCullingOutputClear);
+
+    clearMeshPass.setExecuteFunction([meshCullingOutputClear, meshletCullingOutputClear] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+        auto meshletInstanceBuffer = graph.getBuffer(meshCullingOutputClear);
+        auto meshletInstanceBuffer2 = graph.getBuffer(meshletCullingOutputClear);
+        cmd.clearBuffer(meshletInstanceBuffer, 0, 0, sizeof(u32) * 2);
+        cmd.clearBuffer(meshletInstanceBuffer2, 0, 0, sizeof(u32) * 2);
+    });
 
     {
         auto& cullMeshPass = graph.addPass("cull_meshes", canta::PassType::COMPUTE, cullGroup);
@@ -48,12 +49,13 @@ void cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
                 u64 globalDataRef;
                 u64 meshletInstanceBuffer;
                 i32 cameraIndex;
-                i32 padding;
+                i32 testAlpha;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                 .globalDataRef = globalBuffer->address(),
                 .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                .cameraIndex = params.cameraIndex
+                .cameraIndex = params.cameraIndex,
+                .testAlpha = params.testAlpha
             });
             cmd.dispatchThreads(params.meshCount);
         });
@@ -105,15 +107,24 @@ void cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
                 u64 meshletInstanceInputBuffer;
                 u64 meshletInstanceOutputBuffer;
                 i32 cameraIndex;
-                i32 padding;
+                i32 alpha;
             };
             cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                 .globalDataRef = globalBuffer->address(),
                 .meshletInstanceInputBuffer = meshletInstanceInputBuffer->address(),
                 .meshletInstanceOutputBuffer = meshletInstanceOutputBuffer->address(),
-                .cameraIndex = params.cameraIndex
+                .cameraIndex = params.cameraIndex,
+                .alpha = false
             });
             cmd.dispatchIndirect(meshCommandBuffer, 0);
+            cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                .globalDataRef = globalBuffer->address(),
+                .meshletInstanceInputBuffer = meshletInstanceInputBuffer->address(),
+                .meshletInstanceOutputBuffer = meshletInstanceOutputBuffer->address(),
+                .cameraIndex = params.cameraIndex,
+                .alpha = true
+            });
+            cmd.dispatchIndirect(meshCommandBuffer, sizeof(DispatchIndirectCommand));
         });
 
         auto& writeMeshletCommandPass = graph.addPass("write_meshlet_command", canta::PassType::COMPUTE, cullGroup);
@@ -137,4 +148,5 @@ void cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
             cmd.dispatchWorkgroups();
         });
     }
+    return clearMeshPass;
 }

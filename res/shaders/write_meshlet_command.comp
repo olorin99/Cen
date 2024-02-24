@@ -16,7 +16,7 @@ layout (push_constant) uniform Push {
 layout (local_size_x = 1) in;
 void main() {
 
-    uint meshletCount = meshletInstanceBuffer.count;
+    uint meshletCount = meshletInstanceBuffer.opaqueCount;
     DispatchIndirectCommand command;
     uint x = max(1, uint(ceil(sqrt(float(meshletCount)))));
     uint y = x;
@@ -25,4 +25,11 @@ void main() {
     command.z = 1;
     commandBuffer.command = command;
 
+    meshletCount = meshletInstanceBuffer.alphaCount;
+    x = max(1, uint(ceil(sqrt(float(meshletCount)))));
+    y = x;
+    command.x = x;
+    command.y = y;
+    command.z = 1;
+    commandBuffer[1].command = command;
 }

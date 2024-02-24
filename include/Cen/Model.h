@@ -16,6 +16,7 @@ namespace cen {
         ende::math::Vec4f min;
         ende::math::Vec4f max;
         MaterialInstance* materialInstance = nullptr;
+        i32 alphaMapIndex = -1;
     };
 
     class Model {

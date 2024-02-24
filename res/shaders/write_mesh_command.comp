@@ -16,11 +16,16 @@ layout (push_constant) uniform Push {
 layout (local_size_x = 1) in;
 void main() {
 
-    uint meshletCount = meshletInstanceBuffer.count;
+    uint meshletCount = meshletInstanceBuffer.opaqueCount;
     DispatchIndirectCommand command;
     command.x = (meshletCount + 63) / 64;
     command.y = 1;
     command.z = 1;
     commandBuffer.command = command;
+
+    command.x = (meshletInstanceBuffer.alphaCount + 63) / 64;
+    command.y = 1;
+    command.z = 1;
+    commandBuffer[1].command = command;
 
 }

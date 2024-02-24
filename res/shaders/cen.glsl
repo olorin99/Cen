@@ -42,6 +42,7 @@ struct GPUMesh {
     vec4 max;
     int materialId;
     uint materialOffset;
+    int alphaMapIndex;
 };
 #ifndef __cplusplus
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer MeshBuffer {
@@ -74,7 +75,8 @@ struct MeshletInstance {
 };
 #ifndef __cplusplus
 layout (scalar, buffer_reference, buffer_reference_align = 4) buffer MeshletInstanceBuffer {
-    uint count;
+    uint opaqueCount;
+    uint alphaCount;
     MeshletInstance instances[];
 };
 #else

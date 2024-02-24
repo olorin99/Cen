@@ -1,8 +1,9 @@
 #include "MeshletDrawPass.h"
 #include <Ende/util/colour.h>
+#include <cen.glsl>
 
-void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshletsParams params) {
-    auto drawGroup = graph.getGroup("draw_meshlets", ende::util::rgb(63, 7, 91));
+auto cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshletsParams params) -> canta::RenderPass& {
+    auto drawGroup = graph.getGroup(params.name, ende::util::rgb(63, 7, 91));
 
     if (params.useMeshShading) {
         auto& geometryPass = graph.addPass("geometry", canta::PassType::GRAPHICS, drawGroup);
@@ -32,13 +33,25 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
             struct Push {
                 u64 globalDataRef;
                 u64 meshletInstanceBuffer;
+                i32 alphaPass;
+                i32 padding;
             };
             cmd.pushConstants(canta::ShaderStage::MESH, Push {
                 .globalDataRef = globalBuffer->address(),
-                .meshletInstanceBuffer = meshletInstanceBuffer->address()
+                .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                .alphaPass = 0
             });
             cmd.drawMeshTasksIndirect(command, 0, 1);
+
+            cmd.bindPipeline(params.meshShadingAlphaPipeline);
+            cmd.pushConstants(canta::ShaderStage::MESH, Push {
+                .globalDataRef = globalBuffer->address(),
+                .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                .alphaPass = 1
+            });
+            cmd.drawMeshTasksIndirect(command, sizeof(DispatchIndirectCommand), 1);
         });
+        return geometryPass;
     } else {
 
         auto outputIndicesIndex = graph.addBuffer({
@@ -142,6 +155,6 @@ void cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
             });
             cmd.drawIndirectCount(drawCommandsBuffer, sizeof(u32), drawCommandsBuffer, 0);
         });
-
+        return geometryPass;
     }
 }

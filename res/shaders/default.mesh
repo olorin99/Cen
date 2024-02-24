@@ -20,11 +20,14 @@
 layout (location = 0) out VsOut {
     flat uint drawId;
     flat uint meshletId;
+    vec2 uv;
 } meshOut[];
 
 layout (push_constant) uniform Push {
     GlobalDataRef globalDataRef;
     MeshletInstanceBuffer meshletInstanceBuffer;
+    int alphaPass;
+    int padding;
 };
 
 shared vec3 vertexClip[MAX_MESHLET_VERTICES];
@@ -34,6 +37,11 @@ layout (local_size_x = WORKGROUP_SIZE_X) in;
 layout (triangles, max_vertices = MAX_MESHLET_VERTICES, max_primitives = MAX_MESHLET_PRIMTIVES) out;
 void main() {
 
+    uint offset = 0;
+    if (alphaPass != 0) {
+        offset = (MAX_MESHLET_INSTANCE - 1) - meshletInstanceBuffer.alphaCount;
+    }
+
     uint threadIndex = gl_LocalInvocationIndex;
     if (threadIndex == 0) {
         sharedPassedPrimitives = 0;
@@ -42,8 +50,10 @@ void main() {
 
     GPUCamera camera = globalDataRef.globalData.cameraBufferRef[globalDataRef.globalData.primaryCamera].camera;
 
-    uint meshletIndex = gl_WorkGroupID.x + gl_NumWorkGroups.x * gl_WorkGroupID.y;
-    if (meshletIndex >= meshletInstanceBuffer.count) {
+    uint workGroupIndex = gl_WorkGroupID.x + gl_NumWorkGroups.x * gl_WorkGroupID.y;
+    uint meshletIndex = workGroupIndex + offset;
+    if (alphaPass == 0 && workGroupIndex >= meshletInstanceBuffer.opaqueCount ||
+        alphaPass != 0 && workGroupIndex >= meshletInstanceBuffer.alphaCount) {
         SetMeshOutputsEXT(0, 0);
         return;
     }
@@ -63,6 +73,7 @@ void main() {
 
         meshOut[threadIndex].drawId = instance.meshId;
         meshOut[threadIndex].meshletId = meshletIndex;
+        meshOut[threadIndex].uv = vertex.uv;
 
         gl_MeshVerticesEXT[threadIndex].gl_Position = clipPos;
     }

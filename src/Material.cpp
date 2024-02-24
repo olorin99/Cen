@@ -5,11 +5,13 @@
 cen::MaterialInstance::MaterialInstance(cen::MaterialInstance &&rhs) noexcept {
     std::swap(_material, rhs._material);
     std::swap(_offset, rhs._offset);
+    std::swap(_transparent, rhs._transparent);
 }
 
 auto cen::MaterialInstance::operator=(cen::MaterialInstance &&rhs) noexcept -> MaterialInstance & {
     std::swap(_material, rhs._material);
     std::swap(_offset, rhs._offset);
+    std::swap(_transparent, rhs._transparent);
     return *this;
 }
 

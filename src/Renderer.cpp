@@ -103,6 +103,34 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
         .colourFormats = { canta::Format::R32_UINT },
         .depthFormat = canta::Format::D32_SFLOAT
     });
+    renderer._drawMeshletsPipelineMeshAlphaPath = info.engine->pipelineManager().getPipeline({
+        .fragment = { .module = info.engine->pipelineManager().getShader({
+            .path = "visibility_buffer/visibility.frag",
+            .macros = {
+                canta::Macro{ "ALPHA_TEST", std::to_string(true) }
+            },
+            .stage = canta::ShaderStage::FRAGMENT
+        })},
+        .mesh = { .module = info.engine->pipelineManager().getShader({
+            .path = "default.mesh",
+            .macros = {
+                canta::Macro{ "WORKGROUP_SIZE_X", std::to_string(64) },
+                canta::Macro{ "MAX_MESHLET_VERTICES", std::to_string(cen::MAX_MESHLET_VERTICES) },
+                canta::Macro{ "MAX_MESHLET_PRIMTIVES", std::to_string(cen::MAX_MESHLET_PRIMTIVES) }
+            },
+            .stage = canta::ShaderStage::MESH
+        })},
+        .rasterState = {
+            .cullMode = canta::CullMode::NONE
+        },
+        .depthState = {
+            .test = true,
+            .write = true,
+            .compareOp = canta::CompareOp::GEQUAL
+        },
+        .colourFormats = { canta::Format::R32_UINT },
+        .depthFormat = canta::Format::D32_SFLOAT
+    });
     renderer._writePrimitivesPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "output_indirect.comp",
@@ -178,11 +206,11 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .name = "meshlet_buffer"
     });
     auto meshletCullingOutputResource = _renderGraph.addBuffer({
-        .size = static_cast<u32>(sizeof(u32) + sizeof(MeshletInstance) * _globalData.maxMeshletCount),
+        .size = static_cast<u32>((sizeof(u32) * 2) + sizeof(MeshletInstance) * _globalData.maxMeshletCount),
         .name = "meshlet_instance_2_buffer"
     });
     auto commandResource = _renderGraph.addBuffer({
-        .size = sizeof(DispatchIndirectCommand),
+        .size = sizeof(DispatchIndirectCommand) * 2,
         .name = "meshlet_command_buffer"
     });
     auto cameraResource = _renderGraph.addBuffer({
@@ -223,10 +251,12 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .maxMeshletInstancesCount = _globalData.maxMeshletCount,
         .meshCount = sceneInfo.meshCount,
         .cameraIndex = static_cast<i32>(sceneInfo.cullingCamera),
+        .testAlpha = false,
         .cullMeshesPipeline = _cullMeshesPipeline,
         .writeMeshletCullCommandPipeline = _writeMeshletCullCommandPipeline,
         .culLMeshletsPipeline = _cullMeshletsPipeline,
-        .writeMeshletDrawCommandPipeline = _writeMeshletDrawCommandPipeline
+        .writeMeshletDrawCommandPipeline = _writeMeshletDrawCommandPipeline,
+        .name = "cull_meshlets"
     });
 
     passes::drawMeshlets(_renderGraph, {
@@ -244,10 +274,12 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .depthImage = depthIndex,
         .useMeshShading = _engine->meshShadingEnabled(),
         .meshShadingPipeline = _drawMeshletsPipelineMeshPath,
+        .meshShadingAlphaPipeline = _drawMeshletsPipelineMeshAlphaPath,
         .writePrimitivesPipeline = _writePrimitivesPipeline,
         .vertexPipeline = _drawMeshletsPipelineVertexPath,
         .maxMeshletInstancesCount = _globalData.maxMeshletCount,
-        .generatedPrimitiveCount = _globalData.maxIndirectIndexCount
+        .generatedPrimitiveCount = _globalData.maxIndirectIndexCount,
+        .name = "draw_meshlets"
     });
 
     auto backbufferClear = _renderGraph.addAlias(backbuffer);
@@ -468,8 +500,10 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     _globalBuffers[flyingIndex]->data(_globalData);
 
     auto result = _renderGraph.compile();
-    if (!result.has_value())
+    if (!result.has_value()) {
         std::printf("cyclical graph found");
+        throw "cyclical graph found";
+    }
 
     auto waits = std::to_array({
         { _engine->device()->frameSemaphore(), _engine->device()->framePrevValue() },

@@ -29,11 +29,11 @@ vec4 evalMaterial(Material material, InterpolatedValues values, GlobalData globa
         }
 
 
-        float diff = max(dot(lightDir, values.normal), 0.0);
+        float diff = max(dot(lightDir, material.normal), 0.0);
         vec3 diffuse = light.colour * albedo.xyz * diff * light.intensity * attenuation;
 
         vec3 halfWayDir = normalize(lightDir + viewDir);
-        float spec = pow(max(dot(values.normal, halfWayDir), 0.0), 32.0);
+        float spec = pow(max(dot(material.normal, halfWayDir), 0.0), 32.0);
         vec3 specular = vec3(0.3) * spec * light.intensity * attenuation;
 
         result += diffuse + specular;

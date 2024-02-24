@@ -20,12 +20,14 @@ namespace cen::passes {
         canta::ImageIndex depthImage;
         bool useMeshShading = true;
         canta::PipelineHandle meshShadingPipeline;
+        canta::PipelineHandle meshShadingAlphaPipeline;
         canta::PipelineHandle writePrimitivesPipeline;
         canta::PipelineHandle vertexPipeline;
         u32 maxMeshletInstancesCount;
         u32 generatedPrimitiveCount;
+        std::string_view name;
     };
-    void drawMeshlets(canta::RenderGraph& graph, DrawMeshletsParams params);
+    auto drawMeshlets(canta::RenderGraph& graph, DrawMeshletsParams params) -> canta::RenderPass&;
 
 }
 

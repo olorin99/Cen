@@ -79,6 +79,7 @@ namespace cen {
         canta::PipelineHandle _writeMeshletDrawCommandPipeline = {};
         canta::PipelineHandle _writePrimitivesPipeline = {};
         canta::PipelineHandle _drawMeshletsPipelineMeshPath = {};
+        canta::PipelineHandle _drawMeshletsPipelineMeshAlphaPath = {};
         canta::PipelineHandle _drawMeshletsPipelineVertexPath = {};
 
     };

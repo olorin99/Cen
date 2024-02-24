@@ -12,7 +12,7 @@ layout (push_constant) uniform Push {
     GlobalDataRef globalDataRef;
     MeshletInstanceBuffer meshletInstanceBuffer;
     int cameraIndex;
-    int padding;
+    int testAlpha;
 };
 
 bool frustumCheck(vec3 pos, float radius) {
@@ -42,7 +42,13 @@ void main() {
     visible = frustumCheck(center, radius);
     atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshesTotal, 1);
     if (visible) {
-        uint index = atomicAdd(meshletInstanceBuffer.count, mesh.meshletCount);
+        uint index;
+        if (mesh.alphaMapIndex < 0) { // opaque meshes
+            index = atomicAdd(meshletInstanceBuffer.opaqueCount, mesh.meshletCount);
+        } else if (mesh.alphaMapIndex >= 0) { // alpha meshes
+            uint offset = atomicAdd(meshletInstanceBuffer.alphaCount, mesh.meshletCount);
+            index = (MAX_MESHLET_INSTANCE - 1) - (offset + mesh.meshletCount);
+        }
         atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshesDrawn, 1);
         for (uint i = 0; i < mesh.meshletCount; i++) {
             MeshletInstance instance;

@@ -51,7 +51,7 @@ void main() {
     barrier();
 
     uint meshletIndex = gl_WorkGroupID.x + gl_NumWorkGroups.x * gl_WorkGroupID.y;
-    if (meshletIndex >= meshletInstanceBuffer.count) {
+    if (meshletIndex >= meshletInstanceBuffer.opaqueCount) {
         return;
     }
 

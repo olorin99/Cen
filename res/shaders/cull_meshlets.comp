@@ -13,7 +13,7 @@ layout (push_constant) uniform Push {
     MeshletInstanceBuffer meshletInstanceInputBuffer;
     MeshletInstanceBuffer meshletInstanceOutputBuffer;
     int cameraIndex;
-    int padding;
+    int alphaPass;
 };
 
 bool frustumCheck(vec3 pos, float radius) {
@@ -30,21 +30,37 @@ bool frustumCheck(vec3 pos, float radius) {
 layout (local_size_x = 64) in;
 void main() {
 
+    uint offset = 0;
+    uint count = meshletInstanceInputBuffer.opaqueCount;
+    if (alphaPass != 0) {
+        offset = (MAX_MESHLET_INSTANCE - 1) - meshletInstanceInputBuffer.alphaCount;
+        count = meshletInstanceInputBuffer.alphaCount;
+    }
+
     uint threadIndex = gl_GlobalInvocationID.x;
-    if (threadIndex >= globalDataRef.globalData.maxMeshletCount)
+    uint instanceIndex = offset + threadIndex;
+
+    if (instanceIndex >= globalDataRef.globalData.maxMeshletCount)
         return;
 
     bool visible = false;
-    if (threadIndex < meshletInstanceInputBuffer.count) {
-        MeshletInstance instance = meshletInstanceInputBuffer.instances[threadIndex];
-        Meshlet meshlet = globalDataRef.globalData.meshletBufferRef.meshlets[instance.meshletId];
-        vec3 center = (globalDataRef.globalData.transformsBufferRef.transforms[instance.meshId] * vec4(meshlet.center, 1.0)).xyz;
-        visible = frustumCheck(center, meshlet.radius);
-        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshletsTotal, 1);
-        if (visible) {
-            uint index = atomicAdd(meshletInstanceOutputBuffer.count, 1);
-            atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshletsDrawn, 1);
-            meshletInstanceOutputBuffer.instances[index] = instance;
+    if (threadIndex >= count)
+        return;
+
+    MeshletInstance instance = meshletInstanceInputBuffer.instances[instanceIndex];
+    Meshlet meshlet = globalDataRef.globalData.meshletBufferRef.meshlets[instance.meshletId];
+    vec3 center = (globalDataRef.globalData.transformsBufferRef.transforms[instance.meshId] * vec4(meshlet.center, 1.0)).xyz;
+    visible = frustumCheck(center, meshlet.radius);
+    atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshletsTotal, 1);
+    if (visible) {
+        uint index;
+        if (alphaPass == 0) {
+            index = atomicAdd(meshletInstanceOutputBuffer.opaqueCount, 1);
+        } else {
+            uint offset = atomicAdd(meshletInstanceOutputBuffer.alphaCount, 1);
+            index = (MAX_MESHLET_INSTANCE - 1) - (offset + 1);
         }
+        atomicAdd(globalDataRef.globalData.feedbackInfoRef.info.meshletsDrawn, 1);
+        meshletInstanceOutputBuffer.instances[index] = instance;
     }
 }
