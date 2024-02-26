@@ -11,6 +11,7 @@
 #include <Cen/ui/StatisticsWindow.h>
 #include <Cen/ui/SceneWindow.h>
 #include <Cen/ui/ViewportWindow.h>
+#include <Cen/ui/RenderGraphWindow.h>
 
 #include <Ende/thread/ThreadPool.h>
 
@@ -63,10 +64,15 @@ int main(int argc, char* argv[]) {
     cen::ui::ViewportWindow viewportWindow = {};
     viewportWindow._renderer = &renderer;
 
+    cen::ui::RenderGraphWindow renderGraphWindow = {};
+    renderGraphWindow.engine = engine.get();
+    renderGraphWindow.renderGraph = &renderer.renderGraph();
+
     guiWorkspace.addWindow(&settingsWindow);
     guiWorkspace.addWindow(&statisticsWindow);
     guiWorkspace.addWindow(&sceneWindow);
     guiWorkspace.addWindow(&viewportWindow);
+    guiWorkspace.addWindow(&renderGraphWindow);
 
     auto camera = cen::Camera::create({
         .position = { 0, 0, 2 },
@@ -157,6 +163,11 @@ int main(int argc, char* argv[]) {
                                 guiPointer = nullptr;
                             else
                                 guiPointer = &guiWorkspace;
+                            break;
+                        case SDL_SCANCODE_P:
+                            if (backbufferImage) {
+                                engine->saveImageToDisk(backbufferImage, "backbuffer_screenshot.jpg", canta::ImageLayout::COLOUR_ATTACHMENT);
+                            }
                             break;
                     }
                     break;

@@ -45,7 +45,9 @@ add_library(Cen
         src/ui/ViewportWindow.cpp
         include/Cen/ui/ViewportWindow.h
         src/ui/ImageWidget.cpp
-        include/Cen/ui/ImageWidget.h)
+        include/Cen/ui/ImageWidget.h
+        src/ui/RenderGraphWindow.cpp
+        include/Cen/ui/RenderGraphWindow.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)

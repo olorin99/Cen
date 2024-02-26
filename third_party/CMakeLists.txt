@@ -27,4 +27,4 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Ende Canta fastgltf meshopt)
 
-add_library(stb_image STATIC stb_image.h stb_image.cpp)
+add_library(stb_image STATIC stb_image.h stb_image_write.h stb_image.cpp)

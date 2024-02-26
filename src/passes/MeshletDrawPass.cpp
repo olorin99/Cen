@@ -36,7 +36,7 @@ auto cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
                 i32 alphaPass;
                 i32 padding;
             };
-            cmd.pushConstants(canta::ShaderStage::MESH, Push {
+            cmd.pushConstants(canta::ShaderStage::MESH | canta::ShaderStage::FRAGMENT, Push {
                 .globalDataRef = globalBuffer->address(),
                 .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                 .alphaPass = 0
@@ -44,7 +44,7 @@ auto cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
             cmd.drawMeshTasksIndirect(command, 0, 1);
 
             cmd.bindPipeline(params.meshShadingAlphaPipeline);
-            cmd.pushConstants(canta::ShaderStage::MESH, Push {
+            cmd.pushConstants(canta::ShaderStage::MESH | canta::ShaderStage::FRAGMENT, Push {
                 .globalDataRef = globalBuffer->address(),
                 .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                 .alphaPass = 1

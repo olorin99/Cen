@@ -48,6 +48,8 @@ namespace cen {
         auto uploadPrimitiveData(std::span<const u8> data) -> u32;
         auto uploadMeshletData(std::span<const Meshlet> data) -> u32;
 
+        auto saveImageToDisk(canta::ImageHandle image, const std::filesystem::path& path, canta::ImageLayout srcLayout, bool tonemap = true) -> bool;
+
     private:
 
         std::unique_ptr<canta::Device> _device = {};
