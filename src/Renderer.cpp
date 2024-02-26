@@ -162,6 +162,12 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
         .colourFormats = { canta::Format::R32_UINT },
         .depthFormat = canta::Format::D32_SFLOAT
     });
+    renderer._tonemapPipeline = info.engine->pipelineManager().getPipeline({
+        .compute = { .module = info.engine->pipelineManager().getShader({
+            .path = "tonemap.comp",
+            .stage = canta::ShaderStage::COMPUTE
+        })}
+    });
 
     return renderer;
 }
@@ -234,8 +240,12 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .format = canta::Format::R32_UINT,
         .name = "visibility_buffer"
     });
-    auto backbuffer = _renderGraph.addImage({
+    auto hdrBackbuffer = _renderGraph.addImage({
         .format = canta::Format::RGBA32_SFLOAT,
+        .name = "hdr_backbuffer"
+    });
+    auto backbuffer = _renderGraph.addImage({
+        .format = canta::Format::RGBA8_UNORM,
         .name = "backbuffer"
     });
 
@@ -282,7 +292,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .name = "draw_meshlets"
     });
 
-    auto backbufferClear = _renderGraph.addAlias(backbuffer);
+    auto backbufferClear = _renderGraph.addAlias(debugEnabled ? backbuffer : hdrBackbuffer);
     _renderGraph.addClearPass("clear_backbuffer", backbufferClear);
 
     if (!debugEnabled) {
@@ -294,12 +304,12 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         materialPass.addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER);
         materialPass.addStorageBufferRead(meshletCullingOutputResource, canta::PipelineStage::COMPUTE_SHADER);
 
-        materialPass.addStorageImageWrite(backbuffer, canta::PipelineStage::COMPUTE_SHADER);
+        materialPass.addStorageImageWrite(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
 
         materialPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto visibilityBufferImage = graph.getImage(visibilityBuffer);
             auto depthImage = graph.getImage(depthIndex);
-            auto backbufferImage = graph.getImage(backbuffer);
+            auto backbufferImage = graph.getImage(hdrBackbuffer);
             auto globalBuffer = graph.getBuffer(globalBufferResource);
             auto meshletInstanceBuffer = graph.getBuffer(meshletCullingOutputResource);
 
@@ -326,6 +336,35 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                 });
                 cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
             }
+        });
+
+        auto& tonemapPass = _renderGraph.addPass("tonemap_pass", canta::PassType::COMPUTE);
+
+        tonemapPass.addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER);
+        tonemapPass.addStorageImageRead(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
+        tonemapPass.addStorageImageWrite(backbuffer, canta::PipelineStage::COMPUTE_SHADER);
+
+        tonemapPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            auto globalBuffer = graph.getBuffer(globalBufferResource);
+            auto hdrBackbufferImage = graph.getImage(hdrBackbuffer);
+            auto backbufferImage = graph.getImage(backbuffer);
+
+            cmd.bindPipeline(_tonemapPipeline);
+
+            struct Push {
+                u64 globalBuffer;
+                i32 hdrBackbufferIndex;
+                i32 backbufferIndex;
+                i32 modeIndex;
+                i32 padding;
+            };
+            cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                .globalBuffer = globalBuffer->address(),
+                .hdrBackbufferIndex = hdrBackbufferImage.index(),
+                .backbufferIndex = backbufferImage.index(),
+                .modeIndex = _renderSettings.tonemapModeIndex
+            });
+            cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
         });
     }
 
@@ -391,7 +430,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     }
     if (_renderSettings.debugFrustumIndex >= 0) {
         passes::debugFrustum(_renderGraph, {
-            .backbuffer = backbuffer,
+            .backbuffer = hdrBackbuffer,
             .depth = depthIndex,
             .globalBuffer = globalBufferResource,
             .cameraBuffer = cameraResource,
@@ -423,7 +462,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
 
         mousePickPass.addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER);
         mousePickPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER);
-        mousePickPass.addStorageImageWrite(backbuffer, canta::PipelineStage::COMPUTE_SHADER);
+        mousePickPass.addStorageImageWrite(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
 
         mousePickPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto visibilityBufferImage = graph.getImage(visibilityBuffer);
@@ -484,6 +523,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     _globalData.maxIndirectIndexCount = 10000000 * 3;
     _globalData.maxLightCount = sceneInfo.lightCount;
     _globalData.screenSize = { 1920, 1080 };
+    _globalData.exposure = 1.0f;
     _globalData.primaryCamera = sceneInfo.primaryCamera,
     _globalData.cullingCamera = sceneInfo.cullingCamera;
     _globalData.textureSampler = _textureSampler.index();

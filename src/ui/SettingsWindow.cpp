@@ -61,6 +61,11 @@ void cen::ui::SettingsWindow::render() {
         }
 
         auto& renderSettings = renderer->renderSettings();
+        const char* tonemapModes[] = { "AGX", "ACES", "REINHARD", "REINHARD2", "LOTTES", "UCHIMURA" };
+        static int tonemapModeIndex = 0;
+        if (ImGui::Combo("Tonemap Operator", &tonemapModeIndex, tonemapModes, 6)) {
+            renderSettings.tonemapModeIndex = tonemapModeIndex;
+        }
         ImGui::Checkbox("MeshletId", &renderSettings.debugMeshletId);
         ImGui::Checkbox("PrimitiveId", &renderSettings.debugPrimitiveId);
         ImGui::Checkbox("MeshId", &renderSettings.debugMeshId);

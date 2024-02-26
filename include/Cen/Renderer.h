@@ -42,6 +42,8 @@ namespace cen {
         auto feedbackInfo() -> FeedbackInfo { return _feedbackInfo; }
 
         struct RenderSettings {
+            i32 tonemapModeIndex = 0;
+
             bool debugMeshletId = false;
             bool debugPrimitiveId = false;
             bool debugMeshId = false;
@@ -81,6 +83,7 @@ namespace cen {
         canta::PipelineHandle _drawMeshletsPipelineMeshPath = {};
         canta::PipelineHandle _drawMeshletsPipelineMeshAlphaPath = {};
         canta::PipelineHandle _drawMeshletsPipelineVertexPath = {};
+        canta::PipelineHandle _tonemapPipeline = {};
 
     };
 
