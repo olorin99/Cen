@@ -292,80 +292,80 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         .name = "draw_meshlets"
     });
 
-    auto backbufferClear = _renderGraph.addAlias(debugEnabled ? backbuffer : hdrBackbuffer);
-    _renderGraph.addClearPass("clear_backbuffer", backbufferClear);
+    auto [backbufferClear] = _renderGraph.addClearPass("clear_backbuffer", debugEnabled ? backbuffer : hdrBackbuffer)
+            .aliasImageOutputs<1>();
 
     if (!debugEnabled) {
-        auto& materialPass = _renderGraph.addPass("material_pass", canta::PassType::COMPUTE);
+        _renderGraph.addPass("material_pass", canta::PassType::COMPUTE)
 
-        materialPass.addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        materialPass.addSampledRead(depthIndex, canta::PipelineStage::COMPUTE_SHADER);
-        materialPass.addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
-        materialPass.addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER);
-        materialPass.addStorageBufferRead(meshletCullingOutputResource, canta::PipelineStage::COMPUTE_SHADER);
+            .addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER)
+            .addSampledRead(depthIndex, canta::PipelineStage::COMPUTE_SHADER)
+            .addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER)
+            .addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER)
+            .addStorageBufferRead(meshletCullingOutputResource, canta::PipelineStage::COMPUTE_SHADER)
 
-        materialPass.addStorageImageWrite(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
+            .addStorageImageWrite(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER)
 
-        materialPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
-            auto visibilityBufferImage = graph.getImage(visibilityBuffer);
-            auto depthImage = graph.getImage(depthIndex);
-            auto backbufferImage = graph.getImage(hdrBackbuffer);
-            auto globalBuffer = graph.getBuffer(globalBufferResource);
-            auto meshletInstanceBuffer = graph.getBuffer(meshletCullingOutputResource);
+            .setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto visibilityBufferImage = graph.getImage(visibilityBuffer);
+                auto depthImage = graph.getImage(depthIndex);
+                auto backbufferImage = graph.getImage(hdrBackbuffer);
+                auto globalBuffer = graph.getBuffer(globalBufferResource);
+                auto meshletInstanceBuffer = graph.getBuffer(meshletCullingOutputResource);
 
 
-            for (auto& material : _engine->assetManager().materials()) {
-                cmd.bindPipeline(material.getVariant(Material::Variant::LIT));
+                for (auto& material : _engine->assetManager().materials()) {
+                    cmd.bindPipeline(material.getVariant(Material::Variant::LIT));
+
+                    struct Push {
+                        u64 globalBuffer;
+                        u64 meshletInstanceBuffer;
+                        u64 materialBuffer;
+                        i32 visibilityIndex;
+                        i32 depthIndex;
+                        i32 backbufferIndex;
+                        i32 padding;
+                    };
+                    cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                            .globalBuffer = globalBuffer->address(),
+                            .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                            .materialBuffer = material.buffer()->address(),
+                            .visibilityIndex = visibilityBufferImage.index(),
+                            .depthIndex = depthImage.index(),
+                            .backbufferIndex = backbufferImage.index(),
+                    });
+                    cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
+                }
+            });
+
+        _renderGraph.addPass("tonemap_pass", canta::PassType::COMPUTE)
+
+            .addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER)
+            .addStorageImageRead(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER)
+            .addStorageImageWrite(backbuffer, canta::PipelineStage::COMPUTE_SHADER)
+
+            .setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto globalBuffer = graph.getBuffer(globalBufferResource);
+                auto hdrBackbufferImage = graph.getImage(hdrBackbuffer);
+                auto backbufferImage = graph.getImage(backbuffer);
+
+                cmd.bindPipeline(_tonemapPipeline);
 
                 struct Push {
                     u64 globalBuffer;
-                    u64 meshletInstanceBuffer;
-                    u64 materialBuffer;
-                    i32 visibilityIndex;
-                    i32 depthIndex;
+                    i32 hdrBackbufferIndex;
                     i32 backbufferIndex;
+                    i32 modeIndex;
                     i32 padding;
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
-                        .globalBuffer = globalBuffer->address(),
-                        .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                        .materialBuffer = material.buffer()->address(),
-                        .visibilityIndex = visibilityBufferImage.index(),
-                        .depthIndex = depthImage.index(),
-                        .backbufferIndex = backbufferImage.index(),
+                    .globalBuffer = globalBuffer->address(),
+                    .hdrBackbufferIndex = hdrBackbufferImage.index(),
+                    .backbufferIndex = backbufferImage.index(),
+                    .modeIndex = _renderSettings.tonemapModeIndex
                 });
                 cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
-            }
-        });
-
-        auto& tonemapPass = _renderGraph.addPass("tonemap_pass", canta::PassType::COMPUTE);
-
-        tonemapPass.addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER);
-        tonemapPass.addStorageImageRead(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
-        tonemapPass.addStorageImageWrite(backbuffer, canta::PipelineStage::COMPUTE_SHADER);
-
-        tonemapPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
-            auto globalBuffer = graph.getBuffer(globalBufferResource);
-            auto hdrBackbufferImage = graph.getImage(hdrBackbuffer);
-            auto backbufferImage = graph.getImage(backbuffer);
-
-            cmd.bindPipeline(_tonemapPipeline);
-
-            struct Push {
-                u64 globalBuffer;
-                i32 hdrBackbufferIndex;
-                i32 backbufferIndex;
-                i32 modeIndex;
-                i32 padding;
-            };
-            cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
-                .globalBuffer = globalBuffer->address(),
-                .hdrBackbufferIndex = hdrBackbufferImage.index(),
-                .backbufferIndex = backbufferImage.index(),
-                .modeIndex = _renderSettings.tonemapModeIndex
             });
-            cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
-        });
     }
 
     if (_renderSettings.debugMeshletId) {
@@ -458,62 +458,56 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
 
 
     if (_renderSettings.mousePick) {
-        auto& mousePickPass = _renderGraph.addPass("mouse_pick", canta::PassType::COMPUTE);
+        _renderGraph.addPass("mouse_pick", canta::PassType::COMPUTE)
 
-        mousePickPass.addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        mousePickPass.addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER);
-        mousePickPass.addStorageImageWrite(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
+            .addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER)
+            .addStorageBufferWrite(feedbackIndex, canta::PipelineStage::COMPUTE_SHADER)
+            .addStorageImageWrite(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER)
 
-        mousePickPass.setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
-            auto visibilityBufferImage = graph.getImage(visibilityBuffer);
-            auto globalBuffer = graph.getBuffer(globalBufferResource);
-            auto meshletInstanceBuffer = graph.getBuffer(meshletCullingOutputResource);
+            .setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto visibilityBufferImage = graph.getImage(visibilityBuffer);
+                auto globalBuffer = graph.getBuffer(globalBufferResource);
+                auto meshletInstanceBuffer = graph.getBuffer(meshletCullingOutputResource);
 
-            cmd.bindPipeline(_engine->pipelineManager().getPipeline({
-                .compute = { .module = _engine->pipelineManager().getShader({
-                    .path = "util/mouse_pick.comp",
-                    .stage = canta::ShaderStage::COMPUTE
-                })}
-            }));
+                cmd.bindPipeline(_engine->pipelineManager().getPipeline({
+                    .compute = { .module = _engine->pipelineManager().getShader({
+                        .path = "util/mouse_pick.comp",
+                        .stage = canta::ShaderStage::COMPUTE
+                    })}
+                }));
 
-            struct Push {
-                u64 globalBuffer;
-                u64 meshletInstancesBuffer;
-                i32 visibilityBuffer;
-                i32 mouseX;
-                i32 mouseY;
-                i32 padding;
-            };
-            cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
-                .globalBuffer = globalBuffer->address(),
-                .meshletInstancesBuffer = meshletInstanceBuffer->address(),
-                .visibilityBuffer = visibilityBufferImage.index(),
-                .mouseX = _renderSettings.mouseX,
-                .mouseY = _renderSettings.mouseY
+                struct Push {
+                    u64 globalBuffer;
+                    u64 meshletInstancesBuffer;
+                    i32 visibilityBuffer;
+                    i32 mouseX;
+                    i32 mouseY;
+                    i32 padding;
+                };
+                cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                    .globalBuffer = globalBuffer->address(),
+                    .meshletInstancesBuffer = meshletInstanceBuffer->address(),
+                    .visibilityBuffer = visibilityBufferImage.index(),
+                    .mouseX = _renderSettings.mouseX,
+                    .mouseY = _renderSettings.mouseY
+                });
+                cmd.dispatchWorkgroups();
             });
-            cmd.dispatchWorkgroups();
-        });
     }
 
     if (guiWorkspace) {
-        auto uiSwapchainIndex = _renderGraph.addAlias(swapchainResource);
+        _renderGraph.addPass("ui", canta::PassType::GRAPHICS)
+            .addColourRead(backbuffer)
 
-        auto& uiPass = _renderGraph.addPass("ui", canta::PassType::GRAPHICS);
+            .addColourWrite(swapchainResource)
 
-        uiPass.addColourRead(backbuffer);
-        uiPass.addColourRead(swapchainResource);
-
-        uiPass.addColourWrite(uiSwapchainIndex);
-
-        uiPass.setExecuteFunction([&guiWorkspace, &swapchain](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
-            guiWorkspace->context().render(ImGui::GetDrawData(), cmd, swapchain->format());
-        });
-
-        _renderGraph.setBackbuffer(uiSwapchainIndex);
+            .setExecuteFunction([&guiWorkspace, &swapchain](canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                guiWorkspace->context().render(ImGui::GetDrawData(), cmd, swapchain->format());
+            });
     } else {
         _renderGraph.addBlitPass("backbuffer_to_swapchain", backbuffer, swapchainResource);
-        _renderGraph.setBackbuffer(swapchainResource);
     }
+    _renderGraph.setBackbuffer(swapchainResource);
 
     std::memcpy(&_feedbackInfo, _feedbackBuffers[flyingIndex]->mapped().address(), sizeof(FeedbackInfo));
     std::memset(_feedbackBuffers[flyingIndex]->mapped().address(), 0, sizeof(FeedbackInfo));

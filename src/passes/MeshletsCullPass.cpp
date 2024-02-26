@@ -10,37 +10,33 @@ auto cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
         .name = "mesh_output_instances"
     });
 
-    auto meshCullingOutputClear = graph.addAlias(meshOutputInstanceResource);
-    auto meshletCullingOutputClear = graph.addAlias(params.meshletInstanceBuffer);
     auto meshCommandResource = graph.addAlias(params.outputCommand);
-    auto& clearMeshPass = graph.addPass("clear_mesh", canta::PassType::TRANSFER, cullGroup);
-
+    auto& clearMeshPass = graph.addPass("clear_mesh", canta::PassType::TRANSFER, cullGroup)
+        .addTransferWrite(meshOutputInstanceResource)
+        .addTransferWrite(params.meshletInstanceBuffer)
+        .setExecuteFunction([meshOutputInstanceResource, params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            auto meshletInstanceBuffer = graph.getBuffer(meshOutputInstanceResource);
+            auto meshletInstanceBuffer2 = graph.getBuffer(params.meshletInstanceBuffer);
+            cmd.clearBuffer(meshletInstanceBuffer, 0, 0, sizeof(u32) * 2);
+            cmd.clearBuffer(meshletInstanceBuffer2, 0, 0, sizeof(u32) * 2);
+        });
     if (params.read)
         clearMeshPass.addStorageImageRead(params.read.value(), canta::PipelineStage::COMPUTE_SHADER);
 
-    clearMeshPass.addTransferWrite(meshCullingOutputClear);
-    clearMeshPass.addTransferWrite(meshletCullingOutputClear);
+    auto [ meshCullingOutputClear, meshletCullingOutputClear ] = clearMeshPass.aliasBufferOutputs<2>();
 
-    clearMeshPass.setExecuteFunction([meshCullingOutputClear, meshletCullingOutputClear] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
-        auto meshletInstanceBuffer = graph.getBuffer(meshCullingOutputClear);
-        auto meshletInstanceBuffer2 = graph.getBuffer(meshletCullingOutputClear);
-        cmd.clearBuffer(meshletInstanceBuffer, 0, 0, sizeof(u32) * 2);
-        cmd.clearBuffer(meshletInstanceBuffer2, 0, 0, sizeof(u32) * 2);
-    });
 
-    {
-        auto& cullMeshPass = graph.addPass("cull_meshes", canta::PassType::COMPUTE, cullGroup);
+    graph.addPass("cull_meshes", canta::PassType::COMPUTE, cullGroup)
+        .addStorageBufferRead(meshCullingOutputClear, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferRead(params.meshBuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferRead(params.transformBuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferRead(params.cameraBuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferRead(params.globalBuffer, canta::PipelineStage::COMPUTE_SHADER)
 
-        cullMeshPass.addStorageBufferRead(meshCullingOutputClear, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshPass.addStorageBufferRead(params.meshBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshPass.addStorageBufferRead(params.transformBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshPass.addStorageBufferRead(params.cameraBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshPass.addStorageBufferRead(params.globalBuffer, canta::PipelineStage::COMPUTE_SHADER);
+        .addStorageBufferWrite(meshOutputInstanceResource, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferWrite(params.feedbackBuffer, canta::PipelineStage::COMPUTE_SHADER)
 
-        cullMeshPass.addStorageBufferWrite(meshOutputInstanceResource, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshPass.addStorageBufferWrite(params.feedbackBuffer, canta::PipelineStage::COMPUTE_SHADER);
-
-        cullMeshPass.setExecuteFunction([meshOutputInstanceResource, params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+        .setExecuteFunction([meshOutputInstanceResource, params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
             auto meshletInstanceBuffer = graph.getBuffer(meshOutputInstanceResource);
 
@@ -59,12 +55,12 @@ auto cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
             });
             cmd.dispatchThreads(params.meshCount);
         });
-        auto& writeMeshCommandPass = graph.addPass("write_mesh_command", canta::PassType::COMPUTE, cullGroup);
 
-        writeMeshCommandPass.addStorageBufferRead(meshOutputInstanceResource, canta::PipelineStage::COMPUTE_SHADER);
-        writeMeshCommandPass.addStorageBufferWrite(meshCommandResource, canta::PipelineStage::COMPUTE_SHADER);
+    graph.addPass("write_mesh_command", canta::PassType::COMPUTE, cullGroup)
+        .addStorageBufferRead(meshOutputInstanceResource, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferWrite(meshCommandResource, canta::PipelineStage::COMPUTE_SHADER)
 
-        writeMeshCommandPass.setExecuteFunction([params, meshOutputInstanceResource, meshCommandResource] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+        .setExecuteFunction([params, meshOutputInstanceResource, meshCommandResource] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto meshletInstanceBuffer = graph.getBuffer(meshOutputInstanceResource);
             auto meshletCommandBuffer = graph.getBuffer(meshCommandResource);
 
@@ -79,23 +75,23 @@ auto cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
             });
             cmd.dispatchWorkgroups();
         });
-    }
 
-    {
-        auto& cullMeshletsPass = graph.addPass("cull_meshlets", canta::PassType::COMPUTE, cullGroup);
 
-        cullMeshletsPass.addIndirectRead(meshCommandResource);
-        cullMeshletsPass.addStorageBufferRead(params.globalBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshletsPass.addStorageBufferRead(meshletCullingOutputClear, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshletsPass.addStorageBufferRead(params.transformBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshletsPass.addStorageBufferRead(params.meshletBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshletsPass.addStorageBufferRead(params.cameraBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshletsPass.addStorageBufferRead(meshOutputInstanceResource, canta::PipelineStage::COMPUTE_SHADER);
 
-        cullMeshletsPass.addStorageBufferWrite(params.meshletInstanceBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        cullMeshletsPass.addStorageBufferWrite(params.feedbackBuffer, canta::PipelineStage::COMPUTE_SHADER);
+    graph.addPass("cull_meshlets", canta::PassType::COMPUTE, cullGroup)
 
-        cullMeshletsPass.setExecuteFunction([params, meshCommandResource, meshOutputInstanceResource] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+        .addIndirectRead(meshCommandResource)
+        .addStorageBufferRead(params.globalBuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferRead(meshletCullingOutputClear, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferRead(params.transformBuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferRead(params.meshletBuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferRead(params.cameraBuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferRead(meshOutputInstanceResource, canta::PipelineStage::COMPUTE_SHADER)
+
+        .addStorageBufferWrite(params.meshletInstanceBuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferWrite(params.feedbackBuffer, canta::PipelineStage::COMPUTE_SHADER)
+
+        .setExecuteFunction([params, meshCommandResource, meshOutputInstanceResource] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto globalBuffer = graph.getBuffer(params.globalBuffer);
             auto meshCommandBuffer = graph.getBuffer(meshCommandResource);
             auto meshletInstanceInputBuffer = graph.getBuffer(meshOutputInstanceResource);
@@ -127,12 +123,12 @@ auto cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
             cmd.dispatchIndirect(meshCommandBuffer, sizeof(DispatchIndirectCommand));
         });
 
-        auto& writeMeshletCommandPass = graph.addPass("write_meshlet_command", canta::PassType::COMPUTE, cullGroup);
+    graph.addPass("write_meshlet_command", canta::PassType::COMPUTE, cullGroup)
 
-        writeMeshletCommandPass.addStorageBufferRead(params.meshletInstanceBuffer, canta::PipelineStage::COMPUTE_SHADER);
-        writeMeshletCommandPass.addStorageBufferWrite(params.outputCommand, canta::PipelineStage::COMPUTE_SHADER);
+        .addStorageBufferRead(params.meshletInstanceBuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageBufferWrite(params.outputCommand, canta::PipelineStage::COMPUTE_SHADER)
 
-        writeMeshletCommandPass.setExecuteFunction([params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+        .setExecuteFunction([params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto meshletInstanceBuffer = graph.getBuffer(params.meshletInstanceBuffer);
             auto meshletCommandBuffer = graph.getBuffer(params.outputCommand);
 
@@ -147,6 +143,6 @@ auto cen::passes::cullMeshlets(canta::RenderGraph &graph, cen::passes::CullMeshl
             });
             cmd.dispatchWorkgroups();
         });
-    }
+
     return clearMeshPass;
 }

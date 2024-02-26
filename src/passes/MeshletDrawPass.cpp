@@ -6,51 +6,51 @@ auto cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
     auto drawGroup = graph.getGroup(params.name, ende::util::rgb(63, 7, 91));
 
     if (params.useMeshShading) {
-        auto& geometryPass = graph.addPass("geometry", canta::PassType::GRAPHICS, drawGroup);
+        auto& geometryPass = graph.addPass("geometry", canta::PassType::GRAPHICS, drawGroup)
 
-        geometryPass.addIndirectRead(params.command);
+            .addIndirectRead(params.command)
 
-        geometryPass.addStorageBufferRead(params.globalBuffer, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(params.vertexBuffer, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(params.indexBuffer, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(params.primitiveBuffer, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(params.meshletBuffer, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(params.meshletInstanceBuffer, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(params.transformBuffer, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addStorageBufferRead(params.cameraBuffer, canta::PipelineStage::MESH_SHADER);
+            .addStorageBufferRead(params.globalBuffer, canta::PipelineStage::MESH_SHADER)
+            .addStorageBufferRead(params.vertexBuffer, canta::PipelineStage::MESH_SHADER)
+            .addStorageBufferRead(params.indexBuffer, canta::PipelineStage::MESH_SHADER)
+            .addStorageBufferRead(params.primitiveBuffer, canta::PipelineStage::MESH_SHADER)
+            .addStorageBufferRead(params.meshletBuffer, canta::PipelineStage::MESH_SHADER)
+            .addStorageBufferRead(params.meshletInstanceBuffer, canta::PipelineStage::MESH_SHADER)
+            .addStorageBufferRead(params.transformBuffer, canta::PipelineStage::MESH_SHADER)
+            .addStorageBufferRead(params.cameraBuffer, canta::PipelineStage::MESH_SHADER)
 
-        geometryPass.addStorageBufferWrite(params.feedbackBuffer, canta::PipelineStage::MESH_SHADER);
-        geometryPass.addColourWrite(params.backbufferImage);
-        geometryPass.addDepthWrite(params.depthImage, { 0, 0, 0, 0 });
+            .addStorageBufferWrite(params.feedbackBuffer, canta::PipelineStage::MESH_SHADER)
+            .addColourWrite(params.backbufferImage)
+            .addDepthWrite(params.depthImage, { 0, 0, 0, 0 })
 
-        geometryPass.setExecuteFunction([params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
-            auto command = graph.getBuffer(params.command);
-            auto globalBuffer = graph.getBuffer(params.globalBuffer);
-            auto meshletInstanceBuffer = graph.getBuffer(params.meshletInstanceBuffer);
+            .setExecuteFunction([params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto command = graph.getBuffer(params.command);
+                auto globalBuffer = graph.getBuffer(params.globalBuffer);
+                auto meshletInstanceBuffer = graph.getBuffer(params.meshletInstanceBuffer);
 
-            cmd.bindPipeline(params.meshShadingPipeline);
-            cmd.setViewport({ 1920, 1080 });
-            struct Push {
-                u64 globalDataRef;
-                u64 meshletInstanceBuffer;
-                i32 alphaPass;
-                i32 padding;
-            };
-            cmd.pushConstants(canta::ShaderStage::MESH | canta::ShaderStage::FRAGMENT, Push {
-                .globalDataRef = globalBuffer->address(),
-                .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                .alphaPass = 0
+                cmd.bindPipeline(params.meshShadingPipeline);
+                cmd.setViewport({ 1920, 1080 });
+                struct Push {
+                    u64 globalDataRef;
+                    u64 meshletInstanceBuffer;
+                    i32 alphaPass;
+                    i32 padding;
+                };
+                cmd.pushConstants(canta::ShaderStage::MESH | canta::ShaderStage::FRAGMENT, Push {
+                    .globalDataRef = globalBuffer->address(),
+                    .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                    .alphaPass = 0
+                });
+                cmd.drawMeshTasksIndirect(command, 0, 1);
+
+                cmd.bindPipeline(params.meshShadingAlphaPipeline);
+                cmd.pushConstants(canta::ShaderStage::MESH | canta::ShaderStage::FRAGMENT, Push {
+                    .globalDataRef = globalBuffer->address(),
+                    .meshletInstanceBuffer = meshletInstanceBuffer->address(),
+                    .alphaPass = 1
+                });
+                cmd.drawMeshTasksIndirect(command, sizeof(DispatchIndirectCommand), 1);
             });
-            cmd.drawMeshTasksIndirect(command, 0, 1);
-
-            cmd.bindPipeline(params.meshShadingAlphaPipeline);
-            cmd.pushConstants(canta::ShaderStage::MESH | canta::ShaderStage::FRAGMENT, Push {
-                .globalDataRef = globalBuffer->address(),
-                .meshletInstanceBuffer = meshletInstanceBuffer->address(),
-                .alphaPass = 1
-            });
-            cmd.drawMeshTasksIndirect(command, sizeof(DispatchIndirectCommand), 1);
-        });
         return geometryPass;
     } else {
 
