@@ -71,8 +71,8 @@ int main(int argc, char* argv[]) {
     guiWorkspace.addWindow(&settingsWindow);
     guiWorkspace.addWindow(&statisticsWindow);
     guiWorkspace.addWindow(&sceneWindow);
-    guiWorkspace.addWindow(&viewportWindow);
     guiWorkspace.addWindow(&renderGraphWindow);
+    guiWorkspace.addWindow(&viewportWindow);
 
     auto camera = cen::Camera::create({
         .position = { 0, 0, 2 },
@@ -98,32 +98,50 @@ int main(int argc, char* argv[]) {
         .rotation = ende::math::Quaternion({ 0, 0, 1 }, ende::math::rad(180))
     }));
 
-    scene.addLight("direct_light", cen::Light::create({}), cen::Transform::create({}));
+    scene.addLight("light", cen::Light::create({
+        .intensity = 20,
+        .radius = 100,
+    }), cen::Transform::create({}));
 
-    auto material = engine->assetManager().loadMaterial("materials/blinn_phong/blinn_phong.mat");
+//    auto material = engine->assetManager().loadMaterial("materials/blinn_phong/blinn_phong.mat");
+    auto material = engine->assetManager().loadMaterial("materials/pbr/pbr.mat");
 
     ende::thread::ThreadPool threadPool;
 
     cen::Asset<cen::Model> model = {};
-    threadPool.addJob([&engine, &model, gltfPath, &material] (u64 id) {
+    ende::math::Vec3f offset = { 0, -2, 0 };
+    threadPool.addJob([&engine, &scene, &model, gltfPath, &material, offset] (u64 id) {
         model = engine->assetManager().loadModel(gltfPath, material);
-    });
-
-    auto rootNode = scene.addNode("mesh_root");
-
-    threadPool.wait();
-    f32 scale = 4;
-    for (u32 i = 0; i < 1; i++) {
-        for (u32 j = 0; j < 1; j++) {
-            for (u32 k = 0; k < 1; k++) {
-                for (auto& mesh : model->meshes) {
-                    scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
-                        .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }
-                    }), rootNode);
+        auto rootNode = scene.addNode("mesh_root");
+        f32 scale = 4;
+        for (u32 i = 0; i < 1; i++) {
+            for (u32 j = 0; j < 1; j++) {
+                for (u32 k = 0; k < 1; k++) {
+                    for (auto& mesh : model->meshes) {
+                        scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
+                            .position = ende::math::Vec3f{ static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale } + offset
+                        }), rootNode);
+                    }
                 }
             }
         }
-    }
+    });
+
+//    auto rootNode = scene.addNode("mesh_root");
+
+//    threadPool.wait();
+//    f32 scale = 4;
+//    for (u32 i = 0; i < 1; i++) {
+//        for (u32 j = 0; j < 1; j++) {
+//            for (u32 k = 0; k < 1; k++) {
+//                for (auto& mesh : model->meshes) {
+//                    scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
+//                        .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }
+//                    }), rootNode);
+//                }
+//            }
+//        }
+//    }
 
     engine->uploadBuffer().flushStagedData();
     engine->uploadBuffer().wait();

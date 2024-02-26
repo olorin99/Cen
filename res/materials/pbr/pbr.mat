@@ -1,7 +1,7 @@
 {
     "base_pipeline": "pipelines/visibility_material.pipeline",
-    "materialParameters": "struct MaterialParams { int albedoIndex; int normalIndex; };",
-    "materialDefinition": "struct Material { vec4 albedo; vec3 normal; };",
+    "materialParameters": "struct MaterialParams { int albedoIndex; int normalIndex; int metallicRoughnessIndex; int emissiveIndex; float emissiveStrength; };",
+    "materialDefinition": "struct Material { vec4 albedo; vec3 normal; float roughness; float metallic; vec3 emissive; float emissiveStrength; };",
     "materialLoad": { "path": "loadMaterial.glsl" },
     "lit": { "path": "lit.glsl" },
     "unlit": { "path": "unlit.gls;" }

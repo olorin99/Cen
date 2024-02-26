@@ -3,6 +3,7 @@
 auto cen::Light::create(cen::Light::CreateInfo info) -> Light {
     Light light = {};
 
+    light._type = info.type;
     light._position = info.position;
     light._rotation = info.rotation;
     light._colour = info.colour;

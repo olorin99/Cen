@@ -16,6 +16,7 @@ namespace cen {
         };
 
         struct CreateInfo {
+            Type type = Type::POINT;
             ende::math::Vec3f position = { 0, 0, 0 };
             ende::math::Quaternion rotation = { 0, 0, 0, 1 };
             ende::math::Vec3f colour = { 1, 1, 1 };
