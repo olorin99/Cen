@@ -1,0 +1,40 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference2 : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
+
+#include "canta.glsl"
+#include "cen.glsl"
+
+layout (rgba32f, set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform readonly image2D storageImages[];
+layout (set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform writeonly image2D storageImagesOutput[];
+
+layout (push_constant) uniform PushData {
+    GlobalDataRef globalDataRef;
+    int upsampleIndex;
+    int hdrIndex;
+    int outputIndex;
+    int mipCount;
+};
+
+layout (local_size_x = 32, local_size_y = 32) in;
+void main() {
+    ivec2 globCoords = ivec2(gl_GlobalInvocationID.xy);
+
+    ivec2 upsampleSize = imageSize(storageImages[upsampleIndex]);
+    ivec2 hdrSize = imageSize(storageImages[hdrIndex]);
+    ivec2 outputSize = imageSize(storageImagesOutput[outputIndex]);
+
+    if (any(greaterThanEqual(globCoords, outputSize)))
+        return;
+
+    vec4 upsample = imageLoad(storageImages[upsampleIndex], globCoords) / mipCount;
+    vec4 hdr = imageLoad(storageImages[hdrIndex], globCoords);
+
+    vec4 result = mix(hdr, upsample, globalDataRef.globalData.bloomStrength);
+
+    imageStore(storageImagesOutput[outputIndex], globCoords, result);
+}

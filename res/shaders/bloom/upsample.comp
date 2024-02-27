@@ -1,0 +1,62 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference2 : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_shader_explicit_arithmetic_types : enable
+
+#include "canta.glsl"
+#include "cen.glsl"
+
+layout (set = 0, binding = CANTA_BINDLESS_SAMPLERS) uniform sampler samplers[];
+layout (set = 0, binding = CANTA_BINDLESS_SAMPLED_IMAGES) uniform texture2D sampledImages[];
+layout (set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform writeonly image2D storageImagesOutput[];
+
+layout (push_constant) uniform PushData {
+    int inputIndex;
+    int sumIndex;
+    int outputIndex;
+    int bilinearSampler;
+};
+
+// based on "Next Generation Post Processing in Call of Duty Advanced Warfare" SIGGRAPH 2014 presentation
+vec3 upsample(vec2 texCoord) {
+    vec3 a = textureOffset(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), texCoord, ivec2(-1, 1)).rgb;
+    vec3 b = textureOffset(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), texCoord, ivec2(0, 1)).rgb;
+    vec3 c = textureOffset(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), texCoord, ivec2(1, 1)).rgb;
+
+    vec3 d = textureOffset(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), texCoord, ivec2(-1, 0)).rgb;
+    vec3 e = textureOffset(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), texCoord, ivec2(0, 0)).rgb;
+    vec3 f = textureOffset(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), texCoord, ivec2(1, 0)).rgb;
+
+    vec3 g = textureOffset(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), texCoord, ivec2(-1, -1)).rgb;
+    vec3 h = textureOffset(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), texCoord, ivec2(0, -1)).rgb;
+    vec3 i = textureOffset(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), texCoord, ivec2(1, -1)).rgb;
+
+    vec3 result = e * 4.0;
+    result += (b + d + f + h) * 2.0;
+    result += (a + c + g + i);
+    result *= (1.f / 16.f);
+    return result;
+}
+
+layout (local_size_x = 32, local_size_y = 32) in;
+void main() {
+    ivec2 globCoords = ivec2(gl_GlobalInvocationID.xy);
+
+    ivec2 inputSize = textureSize(sampler2D(sampledImages[inputIndex], samplers[bilinearSampler]), 0);
+    ivec2 outputSize = imageSize(storageImagesOutput[outputIndex]);
+
+    if (any(greaterThanEqual(globCoords, outputSize)))
+        return;
+
+    vec2 texCoords = (vec2(globCoords) + 0.5) / outputSize;
+
+    vec3 result = upsample(texCoords);
+
+    if (sumIndex >= 0)
+        result += texture(sampler2D(sampledImages[sumIndex], samplers[bilinearSampler]), texCoords).rgb;
+
+    imageStore(storageImagesOutput[outputIndex], globCoords, vec4(result, 1.0));
+}

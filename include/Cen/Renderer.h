@@ -42,6 +42,9 @@ namespace cen {
         auto feedbackInfo() -> FeedbackInfo { return _feedbackInfo; }
 
         struct RenderSettings {
+            bool bloom = true;
+            i32 bloomMips = 5;
+            f32 bloomStrength = 0.3;
             i32 tonemapModeIndex = 0;
 
             bool debugMeshletId = false;
@@ -71,6 +74,7 @@ namespace cen {
 
         canta::SamplerHandle _textureSampler = {};
         canta::SamplerHandle _depthSampler = {};
+        canta::SamplerHandle _bilinearSampler = {};
 
         canta::BufferHandle _globalBuffers[canta::FRAMES_IN_FLIGHT] = {};
         canta::BufferHandle _feedbackBuffers[canta::FRAMES_IN_FLIGHT] = {};
@@ -83,7 +87,12 @@ namespace cen {
         canta::PipelineHandle _drawMeshletsPipelineMeshPath = {};
         canta::PipelineHandle _drawMeshletsPipelineMeshAlphaPath = {};
         canta::PipelineHandle _drawMeshletsPipelineVertexPath = {};
+
         canta::PipelineHandle _tonemapPipeline = {};
+
+        canta::PipelineHandle _bloomDownsamplePipeline = {};
+        canta::PipelineHandle _bloomUpsamplePipeline = {};
+        canta::PipelineHandle _bloomCompositePipeline = {};
 
     };
 

@@ -17,7 +17,7 @@ void cen::ui::SettingsWindow::render() {
         if (ImGui::Checkbox("RenderGraph Timing", &timingEnabled))
             renderer->renderGraph().setTimingEnabled(timingEnabled);
         const char* timingModes[] = { "PER_PASS", "PER_GROUP", "SINGLE" };
-        static int timingModeIndex = 0;
+        i32 timingModeIndex = static_cast<i32>(renderer->renderGraph().timingMode());
         if (ImGui::Combo("TimingMode", &timingModeIndex, timingModes, 3)) {
             switch (timingModeIndex) {
                 case 0:
@@ -40,7 +40,18 @@ void cen::ui::SettingsWindow::render() {
 
 
         const char* modes[] = { "FIFO", "MAILBOX", "IMMEDIATE" };
-        static int modeIndex = 0;
+        i32 modeIndex = 0;
+        switch (swapchain->getPresentMode()) {
+            case canta::PresentMode::FIFO:
+                modeIndex = 0;
+                break;
+            case canta::PresentMode::MAILBOX:
+                modeIndex = 1;
+                break;
+            case canta::PresentMode::IMMEDIATE:
+                modeIndex = 2;
+                break;
+        }
         if (ImGui::Combo("PresentMode", &modeIndex, modes, 3)) {
             engine->device()->waitIdle();
             switch (modeIndex) {
@@ -61,19 +72,31 @@ void cen::ui::SettingsWindow::render() {
         }
 
         auto& renderSettings = renderer->renderSettings();
-        const char* tonemapModes[] = { "AGX", "ACES", "REINHARD", "REINHARD2", "LOTTES", "UCHIMURA" };
-        static int tonemapModeIndex = 0;
-        if (ImGui::Combo("Tonemap Operator", &tonemapModeIndex, tonemapModes, 6)) {
-            renderSettings.tonemapModeIndex = tonemapModeIndex;
+        if (ImGui::TreeNode("Bloom Settings")) {
+            ImGui::Checkbox("Enable Bloom", &renderSettings.bloom);
+            ImGui::SliderInt("Bloom Mips", &renderSettings.bloomMips, 1, 10);
+            ImGui::SliderFloat("Bloom Strength", &renderSettings.bloomStrength, 0, 1);
+            ImGui::TreePop();
         }
-        ImGui::Checkbox("MeshletId", &renderSettings.debugMeshletId);
-        ImGui::Checkbox("PrimitiveId", &renderSettings.debugPrimitiveId);
-        ImGui::Checkbox("MeshId", &renderSettings.debugMeshId);
-        ImGui::Checkbox("MaterialId", &renderSettings.debugMaterialId);
-        ImGui::Checkbox("Wireframe Solid", &renderSettings.debugWireframe);
-        ImGui::SliderInt("DebugFrustum", &renderSettings.debugFrustumIndex, -1, cameraCount - 1);
-        ImGui::DragFloat("Debug Line Width", &renderSettings.debugLineWidth, 0.1);
-        ImGui::ColorEdit3("Debug Colour", &renderSettings.debugColour[0]);
+        if (ImGui::TreeNode("Tonemap Settings")) {
+            const char* tonemapModes[] = { "AGX", "ACES", "REINHARD", "REINHARD2", "LOTTES", "UCHIMURA" };
+            i32 tonemapModeIndex = renderSettings.tonemapModeIndex;
+            if (ImGui::Combo("Tonemap Operator", &tonemapModeIndex, tonemapModes, 6)) {
+                renderSettings.tonemapModeIndex = tonemapModeIndex;
+            }
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNode("Debug Settings")) {
+            ImGui::Checkbox("MeshletId", &renderSettings.debugMeshletId);
+            ImGui::Checkbox("PrimitiveId", &renderSettings.debugPrimitiveId);
+            ImGui::Checkbox("MeshId", &renderSettings.debugMeshId);
+            ImGui::Checkbox("MaterialId", &renderSettings.debugMaterialId);
+            ImGui::Checkbox("Wireframe Solid", &renderSettings.debugWireframe);
+            ImGui::SliderInt("DebugFrustum", &renderSettings.debugFrustumIndex, -1, cameraCount - 1);
+            ImGui::DragFloat("Debug Line Width", &renderSettings.debugLineWidth, 0.1);
+            ImGui::ColorEdit3("Debug Colour", &renderSettings.debugColour[0]);
+            ImGui::TreePop();
+        }
     }
     ImGui::End();
 }

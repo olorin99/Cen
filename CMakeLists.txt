@@ -47,7 +47,9 @@ add_library(Cen
         src/ui/ImageWidget.cpp
         include/Cen/ui/ImageWidget.h
         src/ui/RenderGraphWindow.cpp
-        include/Cen/ui/RenderGraphWindow.h)
+        include/Cen/ui/RenderGraphWindow.h
+        src/passes/BloomPass.cpp
+        src/passes/BloomPass.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)

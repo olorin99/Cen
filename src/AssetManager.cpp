@@ -188,7 +188,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
                 images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_SRGB));
             }
-            if (!materialInstance.setParameter("albedoIndex", images.back().index()))
+            if (!materialInstance.setParameter("albedoIndex", images.back()->defaultView().index()))
                 std::printf("tried to load image");
 //                _engine->logger().warn("tried to load \"albedoIndex\" but supplied material does not have appropriate parameter");
         } else
@@ -202,7 +202,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
                 images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
             }
-            if (!materialInstance.setParameter("normalIndex", images.back().index()))
+            if (!materialInstance.setParameter("normalIndex", images.back()->defaultView().index()))
                 std::printf("tried to load image");
 //                _engine->logger().warn("tried to load \"normalIndex\" but supplied material does not have appropriate parameter");
         } else
@@ -216,7 +216,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
                 images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
             }
-            if (!materialInstance.setParameter("metallicRoughnessIndex", images.back().index()))
+            if (!materialInstance.setParameter("metallicRoughnessIndex", images.back()->defaultView().index()))
                 std::printf("tried to load image");
 //                _engine->logger().warn("tried to load \"metallicRoughnessIndex\" but supplied material does not have appropriate parameter");
         } else
@@ -229,7 +229,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
                 images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
             }
-            if (!materialInstance.setParameter("emissiveIndex", images.back().index()))
+            if (!materialInstance.setParameter("emissiveIndex", images.back()->defaultView().index()))
                 std::printf("tried to load image");
 //                _engine->logger().warn("tried to load \"emissiveIndex\" but supplied material does not have appropriate parameter");
         } else

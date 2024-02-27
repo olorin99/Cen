@@ -178,6 +178,7 @@ struct GlobalData {
     uint maxLightCount;
     uvec2 screenSize;
     float exposure;
+    float bloomStrength;
     int cullingCamera;
     int primaryCamera;
     int textureSampler;

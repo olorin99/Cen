@@ -74,7 +74,7 @@ void nodeTypeLight(cen::Scene::SceneNode* node, cen::Scene* scene) {
     ImGui::Text("Light: %s", node->name.c_str());
     const char* modes[] = { "DIRECTIONAL", "POINT" };
     cen::Light::Type types[] = { cen::Light::Type::DIRECTIONAL, cen::Light::Type::POINT };
-    static int modeIndex = 0;
+    i32 modeIndex = static_cast<i32>(scene->getLight(node).type());
     if (ImGui::Combo("Type", &modeIndex, modes, 2)) {
         scene->getLight(node).setType(types[modeIndex]);
     }

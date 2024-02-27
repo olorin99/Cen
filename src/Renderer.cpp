@@ -6,6 +6,7 @@
 #include <passes/MeshletDrawPass.h>
 #include <passes/MeshletsCullPass.h>
 #include <passes/DebugPasses.h>
+#include <passes/BloomPass.h>
 
 auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
     Renderer renderer = {};
@@ -35,6 +36,10 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
         .addressMode = canta::AddressMode::CLAMP_TO_BORDER,
         .anisotropy = false,
         .borderColour = canta::BorderColour::OPAQUE_BLACK_FLOAT
+    });
+    renderer._bilinearSampler = info.engine->device()->createSampler({
+        .filter = canta::Filter::LINEAR,
+        .addressMode = canta::AddressMode::CLAMP_TO_EDGE
     });
 
     for (u32 i = 0; auto& buffer : renderer._globalBuffers) {
@@ -167,6 +172,24 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
     renderer._tonemapPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "tonemap.comp",
+            .stage = canta::ShaderStage::COMPUTE
+        })}
+    });
+    renderer._bloomDownsamplePipeline = info.engine->pipelineManager().getPipeline({
+        .compute = { .module = info.engine->pipelineManager().getShader({
+            .path = "bloom/downsample.comp",
+            .stage = canta::ShaderStage::COMPUTE
+        })}
+    });
+    renderer._bloomUpsamplePipeline = info.engine->pipelineManager().getPipeline({
+        .compute = { .module = info.engine->pipelineManager().getShader({
+            .path = "bloom/upsample.comp",
+            .stage = canta::ShaderStage::COMPUTE
+        })}
+    });
+    renderer._bloomCompositePipeline = info.engine->pipelineManager().getPipeline({
+        .compute = { .module = info.engine->pipelineManager().getShader({
+            .path = "bloom/composite.comp",
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
@@ -340,29 +363,44 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                 }
             });
 
+        canta::ImageIndex bloomOutput = {};
+        if (_renderSettings.bloom) {
+            bloomOutput = passes::bloom(_renderGraph, {
+                .mips = _renderSettings.bloomMips,
+                .width = swapchain->width(),
+                .height = swapchain->height(),
+                .hdrBackbuffer = hdrBackbuffer,
+                .globalBuffer = globalBufferResource,
+                .bilinearSampler = _bilinearSampler,
+                .downsamplePipeline = _bloomDownsamplePipeline,
+                .upsamplePipeline = _bloomUpsamplePipeline,
+                .compositePipeline = _bloomCompositePipeline
+            });
+        }
+
         _renderGraph.addPass("tonemap_pass", canta::PassType::COMPUTE)
 
             .addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER)
-            .addStorageImageRead(hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER)
+            .addStorageImageRead(_renderSettings.bloom ? bloomOutput : hdrBackbuffer, canta::PipelineStage::COMPUTE_SHADER)
             .addStorageImageWrite(backbuffer, canta::PipelineStage::COMPUTE_SHADER)
 
-            .setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            .setExecuteFunction([&, bloomOutput, hdrBackbuffer] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
                 auto globalBuffer = graph.getBuffer(globalBufferResource);
-                auto hdrBackbufferImage = graph.getImage(hdrBackbuffer);
+                auto tonemapInputImage = graph.getImage(_renderSettings.bloom ? bloomOutput : hdrBackbuffer);
                 auto backbufferImage = graph.getImage(backbuffer);
 
                 cmd.bindPipeline(_tonemapPipeline);
 
                 struct Push {
                     u64 globalBuffer;
-                    i32 hdrBackbufferIndex;
+                    i32 tonemapInputImage;
                     i32 backbufferIndex;
                     i32 modeIndex;
                     i32 padding;
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                     .globalBuffer = globalBuffer->address(),
-                    .hdrBackbufferIndex = hdrBackbufferImage->defaultView().index(),
+                    .tonemapInputImage = tonemapInputImage->defaultView().index(),
                     .backbufferIndex = backbufferImage->defaultView().index(),
                     .modeIndex = _renderSettings.tonemapModeIndex
                 });
@@ -520,6 +558,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     _globalData.maxLightCount = sceneInfo.lightCount;
     _globalData.screenSize = { 1920, 1080 };
     _globalData.exposure = 1.0f;
+    _globalData.bloomStrength = _renderSettings.bloomStrength;
     _globalData.primaryCamera = sceneInfo.primaryCamera,
     _globalData.cullingCamera = sceneInfo.cullingCamera;
     _globalData.textureSampler = _textureSampler.index();
