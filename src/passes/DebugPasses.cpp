@@ -25,8 +25,8 @@ auto cen::passes::debugVisibilityBuffer(canta::RenderGraph &graph, cen::passes::
         };
         cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
             .globalBuffer = globalBuffer->address(),
-            .visibilityIndex = visibilityBufferImage.index(),
-            .backbufferIndex = backbufferImage.index(),
+            .visibilityIndex = visibilityBufferImage->defaultView().index(),
+            .backbufferIndex = backbufferImage->defaultView().index(),
             .meshletInstanceBuffer = meshletInstanceBuffer->address()
         });
         cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());

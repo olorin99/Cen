@@ -19,7 +19,7 @@ void cen::ui::ImageWidget::render() {
             v1 = ((height / 2) + (static_cast<f32>(_height) / 2)) / height;
         }
 
-        ImGui::Image((ImTextureID)(u64)_image.index(), { static_cast<f32>(_width), static_cast<f32>(_height) }, { u0, v0 }, { u1, v1 });
+        ImGui::Image((ImTextureID)(u64)_image->defaultView().index(), { static_cast<f32>(_width), static_cast<f32>(_height) }, { u0, v0 }, { u1, v1 });
     }
 }
 

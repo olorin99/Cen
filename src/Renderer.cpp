@@ -26,7 +26,9 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
 
     renderer._textureSampler = info.engine->device()->createSampler({
         .filter = canta::Filter::LINEAR,
-        .addressMode = canta::AddressMode::REPEAT
+        .addressMode = canta::AddressMode::REPEAT,
+        .anisotropy = true,
+        .maxAnisotropy = info.engine->device()->limits().maxSamplerAnisotropy
     });
     renderer._depthSampler = info.engine->device()->createSampler({
         .filter = canta::Filter::LINEAR,
@@ -330,9 +332,9 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                             .globalBuffer = globalBuffer->address(),
                             .meshletInstanceBuffer = meshletInstanceBuffer->address(),
                             .materialBuffer = material.buffer()->address(),
-                            .visibilityIndex = visibilityBufferImage.index(),
-                            .depthIndex = depthImage.index(),
-                            .backbufferIndex = backbufferImage.index(),
+                            .visibilityIndex = visibilityBufferImage->defaultView().index(),
+                            .depthIndex = depthImage->defaultView().index(),
+                            .backbufferIndex = backbufferImage->defaultView().index(),
                     });
                     cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
                 }
@@ -360,8 +362,8 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                 };
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                     .globalBuffer = globalBuffer->address(),
-                    .hdrBackbufferIndex = hdrBackbufferImage.index(),
-                    .backbufferIndex = backbufferImage.index(),
+                    .hdrBackbufferIndex = hdrBackbufferImage->defaultView().index(),
+                    .backbufferIndex = backbufferImage->defaultView().index(),
                     .modeIndex = _renderSettings.tonemapModeIndex
                 });
                 cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
@@ -487,7 +489,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                 cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
                     .globalBuffer = globalBuffer->address(),
                     .meshletInstancesBuffer = meshletInstanceBuffer->address(),
-                    .visibilityBuffer = visibilityBufferImage.index(),
+                    .visibilityBuffer = visibilityBufferImage->defaultView().index(),
                     .mouseX = _renderSettings.mouseX,
                     .mouseY = _renderSettings.mouseY
                 });
@@ -507,7 +509,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     } else {
         _renderGraph.addBlitPass("backbuffer_to_swapchain", backbuffer, swapchainResource);
     }
-    _renderGraph.setBackbuffer(swapchainResource);
+    _renderGraph.setBackbuffer(swapchainResource, canta::ImageLayout::PRESENT);
 
     std::memcpy(&_feedbackInfo, _feedbackBuffers[flyingIndex]->mapped().address(), sizeof(FeedbackInfo));
     std::memset(_feedbackBuffers[flyingIndex]->mapped().address(), 0, sizeof(FeedbackInfo));
@@ -549,7 +551,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
         swapchain->presentSemaphore()->getPair()
     });
     auto releasedImages = _engine->uploadBuffer().releasedImages();
-    _renderGraph.execute(waits, signals, true, releasedImages);
+    _renderGraph.execute(waits, signals, releasedImages);
 
     swapchain->present();
 

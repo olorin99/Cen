@@ -129,6 +129,8 @@ auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Form
     assert(length != 0);
     //TODO: mips
 
+//    u32 mips = std::floor(std::log2(std::max(width, height))) + 1;
+
     auto handle = _engine->device()->createImage({
         .width = static_cast<u32>(width),
         .height = static_cast<u32>(height),
