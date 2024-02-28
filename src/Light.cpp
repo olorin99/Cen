@@ -43,12 +43,23 @@ void cen::Light::setRadius(f32 radius) {
     _dirty = true;
 }
 
+void cen::Light::setShadowing(bool shadowing) {
+    _shadowing = shadowing;
+    _dirty = false;
+}
+
+void cen::Light::setCameraIndex(i32 index) {
+    _cameraIndex = index;
+    _dirty = true;
+}
+
 auto cen::Light::gpuLight() const -> GPULight {
     return {
         .position = _type == Type::DIRECTIONAL ? _rotation.unit().front() : _position,
         .type = static_cast<u32>(_type),
         .colour = _colour,
         .intensity = _intensity,
-        .radius = _radius
+        .radius = _radius,
+        .cameraIndex = _cameraIndex
     };
 }

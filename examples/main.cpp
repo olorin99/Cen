@@ -65,17 +65,21 @@ int main(int argc, char* argv[]) {
 
     cen::ui::ViewportWindow viewportWindow = {};
     viewportWindow._renderer = &renderer;
+    viewportWindow.name = "Viewport";
 
     cen::ui::RenderGraphWindow renderGraphWindow = {};
     renderGraphWindow.engine = engine.get();
     renderGraphWindow.renderGraph = &renderer.renderGraph();
+    renderGraphWindow.name = "RenderGraph";
 
     cen::ui::ProfileWindow profileWindow = {};
     profileWindow.renderer = &renderer;
+    profileWindow.name = "Profiling";
 
     cen::ui::AssetManagerWindow assetManagerWindow = {};
     assetManagerWindow.assetManager = &engine->assetManager();
     assetManagerWindow.pipelineManager = &engine->pipelineManager();
+    assetManagerWindow.name = "Asset Manager";
 
     guiWorkspace.addWindow(&settingsWindow);
     guiWorkspace.addWindow(&statisticsWindow);

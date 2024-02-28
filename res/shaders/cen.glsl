@@ -144,6 +144,7 @@ struct GPULight {
     vec3 colour;
     float intensity;
     float radius;
+    int cameraIndex;
 };
 #ifndef __cplusplus
 layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer LightBuffer {

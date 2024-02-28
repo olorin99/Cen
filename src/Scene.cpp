@@ -89,6 +89,59 @@ auto cen::Scene::prepare() -> SceneInfo {
 
     _gpuLights.clear();
     for (auto& light : _lights) {
+        if (light.shadowing()) {
+            i32 cameraIndex = _gpuCameras.size();
+            if (light.type() == Light::Type::DIRECTIONAL) {
+                auto camera = Camera::create({
+                    .position = light.position(),
+                    .rotation = light.rotation(),
+                    .fov = ende::math::rad(45),
+                    .width = 100,
+                    .height = 100,
+                    .near = 0.1,
+                    .far = 1000
+                });
+                _gpuCameras.push_back(camera.gpuCamera());
+            } else {
+                auto camera = Camera::create({
+                     .position = light.position(),
+                     .rotation = ende::math::Quaternion(0, 0, 0, 1),
+                     .fov = ende::math::rad(45),
+                     .width = 100,
+                     .height = 100,
+                     .near = 0.1,
+                     .far = 1000
+                 });
+                for (u32 i = 0; i < 6; i++) {
+                    auto cameraRotation = camera.rotation();
+                    switch (i) {
+                        case 0:
+                            cameraRotation = (ende::math::Quaternion{{0, 1, 0}, ende::math::rad(90)} * cameraRotation).unit();
+                            break;
+                        case 1:
+                            cameraRotation = (ende::math::Quaternion{{0, 1, 0}, ende::math::rad(180)} * cameraRotation).unit();
+                            break;
+                        case 2:
+                            cameraRotation = (ende::math::Quaternion{{0, 1, 0}, ende::math::rad(90)} * cameraRotation).unit();
+                            cameraRotation = (ende::math::Quaternion{{1, 0, 0}, ende::math::rad(90)} * cameraRotation).unit();
+                            break;
+                        case 3:
+                            cameraRotation = (ende::math::Quaternion{{1, 0, 0}, ende::math::rad(180)} * cameraRotation).unit();
+                            break;
+                        case 4:
+                            cameraRotation = (ende::math::Quaternion{{1, 0, 0}, ende::math::rad(90)} * cameraRotation).unit();
+                            break;
+                        case 5:
+                            cameraRotation = (ende::math::Quaternion{{0, 1, 0}, ende::math::rad(180)} * cameraRotation).unit();
+                            break;
+                    }
+                    camera.setRotation(cameraRotation);
+                    _gpuCameras.push_back(camera.gpuCamera());
+                }
+            }
+            light.setCameraIndex(cameraIndex);
+
+        }
         _gpuLights.push_back(light.gpuLight());
     }
 

@@ -45,6 +45,12 @@ namespace cen {
         auto radius() const -> f32 { return _radius; }
         void setRadius(f32 radius);
 
+        auto shadowing() const -> bool { return _shadowing; }
+        void setShadowing(bool shadowing);
+
+        auto cameraIndex() const -> i32 { return _cameraIndex; }
+        void setCameraIndex(i32 index);
+
         auto gpuLight() const -> GPULight;
 
     private:
@@ -55,6 +61,8 @@ namespace cen {
         ende::math::Vec3f _colour = { 1, 1, 1 };
         f32 _intensity = 1;
         f32 _radius = 1;
+        bool _shadowing = true;
+        i32 _cameraIndex = -1;
         bool _dirty = true;
 
     };
