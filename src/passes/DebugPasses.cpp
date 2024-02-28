@@ -67,7 +67,8 @@ auto cen::passes::debugFrustum(canta::RenderGraph &graph, cen::passes::FrustumDe
                 .compareOp = canta::CompareOp::GEQUAL
             },
             .colourFormats = { backbuffer->format() },
-            .depthFormat = canta::Format::D32_SFLOAT
+            .depthFormat = canta::Format::D32_SFLOAT,
+            .name = "debug_frustum"
         }));
 
         struct Push {

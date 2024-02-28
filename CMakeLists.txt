@@ -51,7 +51,9 @@ add_library(Cen
         src/passes/BloomPass.cpp
         src/passes/BloomPass.h
         src/ui/ProfileWindow.cpp
-        include/Cen/ui/ProfileWindow.h)
+        include/Cen/ui/ProfileWindow.h
+        src/ui/AssetManagerWindow.cpp
+        include/Cen/ui/AssetManagerWindow.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)

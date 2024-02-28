@@ -65,25 +65,29 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "cull_meshes.comp",
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "cull_meshes"
     });
     renderer._writeMeshletCullCommandPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "write_mesh_command.comp",
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "write_mesh_command"
     });
     renderer._cullMeshletsPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "cull_meshlets.comp",
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "cull_meshlets"
     });
     renderer._writeMeshletDrawCommandPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "write_meshlet_command.comp",
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "write_meshlet_command"
     });
     renderer._drawMeshletsPipelineMeshPath = info.engine->pipelineManager().getPipeline({
         .fragment = { .module = info.engine->pipelineManager().getShader({
@@ -108,7 +112,8 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
             .compareOp = canta::CompareOp::GEQUAL
         },
         .colourFormats = { canta::Format::R32_UINT },
-        .depthFormat = canta::Format::D32_SFLOAT
+        .depthFormat = canta::Format::D32_SFLOAT,
+        .name = "draw_meshlets_mesh_path"
     });
     renderer._drawMeshletsPipelineMeshAlphaPath = info.engine->pipelineManager().getPipeline({
         .fragment = { .module = info.engine->pipelineManager().getShader({
@@ -136,7 +141,8 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
             .compareOp = canta::CompareOp::GEQUAL
         },
         .colourFormats = { canta::Format::R32_UINT },
-        .depthFormat = canta::Format::D32_SFLOAT
+        .depthFormat = canta::Format::D32_SFLOAT,
+        .name = "draw_meshlets_alpha_mesh_path"
     });
     renderer._writePrimitivesPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
@@ -147,7 +153,8 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
                 canta::Macro{ "MAX_MESHLET_PRIMTIVES", std::to_string(cen::MAX_MESHLET_PRIMTIVES) }
             },
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "write_primtives"
     });
     renderer._drawMeshletsPipelineVertexPath = info.engine->pipelineManager().getPipeline({
         .vertex = { .module = info.engine->pipelineManager().getShader({
@@ -167,37 +174,43 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
             .compareOp = canta::CompareOp::GEQUAL
         },
         .colourFormats = { canta::Format::R32_UINT },
-        .depthFormat = canta::Format::D32_SFLOAT
+        .depthFormat = canta::Format::D32_SFLOAT,
+        .name = "draw_meshlets_vertex_path"
     });
     renderer._tonemapPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "tonemap.comp",
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "tonemap"
     });
     renderer._bloomDownsamplePipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "bloom/downsample.comp",
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "bloom_downsample"
     });
     renderer._bloomUpsamplePipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "bloom/upsample.comp",
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "bloom_upsample"
     });
     renderer._bloomCompositePipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "bloom/composite.comp",
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "bloom_composite"
     });
     renderer._skyPipeline = info.engine->pipelineManager().getPipeline({
         .compute = { .module = info.engine->pipelineManager().getShader({
             .path = "sky.comp",
             .stage = canta::ShaderStage::COMPUTE
-        })}
+        })},
+        .name = "sky"
     });
 
     return renderer;
@@ -447,7 +460,8 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                 .compute = { .module = _engine->pipelineManager().getShader({
                     .path = "debug/meshletId.comp",
                     .stage = canta::ShaderStage::COMPUTE
-                })}
+                })},
+                .name = "debug_meshletId"
             })
         }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
@@ -462,7 +476,8 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                 .compute = { .module = _engine->pipelineManager().getShader({
                     .path = "debug/primitiveId.comp",
                     .stage = canta::ShaderStage::COMPUTE
-                })}
+                })},
+                .name = "debug_primitiveId"
             })
         }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
@@ -477,7 +492,8 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                 .compute = { .module = _engine->pipelineManager().getShader({
                     .path = "debug/meshId.comp",
                     .stage = canta::ShaderStage::COMPUTE
-                })}
+                })},
+                .name = "debug_meshId"
             })
         }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
@@ -492,7 +508,8 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                 .compute = { .module = _engine->pipelineManager().getShader({
                     .path = "debug/materialId.comp",
                     .stage = canta::ShaderStage::COMPUTE
-                })}
+                })},
+                .name = "debug_materialId"
             })
         }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
@@ -519,7 +536,8 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                 .compute = { .module = _engine->pipelineManager().getShader({
                     .path = "debug/wireframe_solid.comp",
                     .stage = canta::ShaderStage::COMPUTE
-                })}
+                })},
+                .name = "debug_wireframe"
             })
         }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
@@ -541,7 +559,8 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                     .compute = { .module = _engine->pipelineManager().getShader({
                         .path = "util/mouse_pick.comp",
                         .stage = canta::ShaderStage::COMPUTE
-                    })}
+                    })},
+                    .name = "util_mouse_pick"
                 }));
 
                 struct Push {

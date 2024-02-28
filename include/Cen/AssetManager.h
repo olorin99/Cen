@@ -60,6 +60,8 @@ namespace cen {
 
         void uploadMaterials();
 
+        auto images() const -> std::span<const canta::ImageHandle> { return _images; }
+        auto models() const -> std::span<const Model> { return _models; }
         auto materials() const -> std::span<const Material> { return _materials; }
 
     private:

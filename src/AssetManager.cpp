@@ -511,7 +511,7 @@ auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> cen::
             canta::Macro{
                 .name = "materialEval",
                 .value = macroise(removeComments(loadMaterialProperty(document["lit"])))
-            }
+            },
         }))
     });
 
