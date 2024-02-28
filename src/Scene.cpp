@@ -120,7 +120,8 @@ auto cen::Scene::prepare() -> SceneInfo {
         .cameraCount = static_cast<u32>(_gpuCameras.size()),
         .primaryCamera = static_cast<u32>(_primaryCamera),
         .cullingCamera = static_cast<u32>(_cullingCamera),
-        .lightCount = static_cast<u32>(_gpuLights.size())
+        .lightCount = static_cast<u32>(_gpuLights.size()),
+        .sunIndex = _lights.front().type() == Light::DIRECTIONAL ? 0 : -1
     };
 }
 

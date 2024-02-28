@@ -23,6 +23,7 @@ namespace cen {
         u32 primaryCamera = 0;
         u32 cullingCamera = 0;
         u32 lightCount = 0;
+        i32 sunIndex = 0;
     };
 
     class Renderer {
@@ -93,6 +94,8 @@ namespace cen {
         canta::PipelineHandle _bloomDownsamplePipeline = {};
         canta::PipelineHandle _bloomUpsamplePipeline = {};
         canta::PipelineHandle _bloomCompositePipeline = {};
+
+        canta::PipelineHandle _skyPipeline = {};
 
     };
 

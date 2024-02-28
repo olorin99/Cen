@@ -193,6 +193,12 @@ auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
             .stage = canta::ShaderStage::COMPUTE
         })}
     });
+    renderer._skyPipeline = info.engine->pipelineManager().getPipeline({
+        .compute = { .module = info.engine->pipelineManager().getShader({
+            .path = "sky.comp",
+            .stage = canta::ShaderStage::COMPUTE
+        })}
+    });
 
     return renderer;
 }
@@ -320,12 +326,34 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     auto [backbufferClear] = _renderGraph.addClearPass("clear_backbuffer", debugEnabled ? backbuffer : hdrBackbuffer)
             .aliasImageOutputs<1>();
 
+    canta::ImageIndex skyBackbuffer = _renderGraph.addAlias(debugEnabled ? backbuffer : hdrBackbuffer);
+    _renderGraph.addPass("sky_pass", canta::PassType::COMPUTE)
+        .addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER)
+        .addStorageImageWrite(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER)
+        .setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+            auto backbufferImage = graph.getImage(skyBackbuffer);
+            auto globalBuffer = graph.getBuffer(globalBufferResource);
+
+            cmd.bindPipeline(_skyPipeline);
+            struct Push {
+                u64 globalBuffer;
+                i32 backbufferIndex;
+                i32 sunIndex;
+            };
+            cmd.pushConstants(canta::ShaderStage::COMPUTE, Push {
+                    .globalBuffer = globalBuffer->address(),
+                    .backbufferIndex = backbufferImage->defaultView().index(),
+                    .sunIndex = sceneInfo.sunIndex
+            });
+            cmd.dispatchThreads(backbufferImage->width(), backbufferImage->height());
+        });
+
     if (!debugEnabled) {
         _renderGraph.addPass("material_pass", canta::PassType::COMPUTE)
 
             .addStorageImageRead(visibilityBuffer, canta::PipelineStage::COMPUTE_SHADER)
             .addSampledRead(depthIndex, canta::PipelineStage::COMPUTE_SHADER)
-            .addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER)
+            .addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER)
             .addStorageBufferRead(globalBufferResource, canta::PipelineStage::COMPUTE_SHADER)
             .addStorageBufferRead(meshletCullingOutputResource, canta::PipelineStage::COMPUTE_SHADER)
 
@@ -421,7 +449,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                     .stage = canta::ShaderStage::COMPUTE
                 })}
             })
-        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+        }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
     if (_renderSettings.debugPrimitiveId) {
         passes::debugVisibilityBuffer(_renderGraph, {
@@ -436,7 +464,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                     .stage = canta::ShaderStage::COMPUTE
                 })}
             })
-        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+        }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
     if (_renderSettings.debugMeshId) {
         passes::debugVisibilityBuffer(_renderGraph, {
@@ -451,7 +479,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                     .stage = canta::ShaderStage::COMPUTE
                 })}
             })
-        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+        }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
     if (_renderSettings.debugMaterialId) {
         passes::debugVisibilityBuffer(_renderGraph, {
@@ -466,7 +494,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                     .stage = canta::ShaderStage::COMPUTE
                 })}
             })
-        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+        }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
     if (_renderSettings.debugFrustumIndex >= 0) {
         passes::debugFrustum(_renderGraph, {
@@ -478,7 +506,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
             .lineWidth = _renderSettings.debugLineWidth,
             .colour = _renderSettings.debugColour,
             .engine = _engine
-        }).addStorageImageRead(backbufferClear, canta::PipelineStage::FRAGMENT_SHADER);
+        }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::FRAGMENT_SHADER);
     }
     if (_renderSettings.debugWireframe) {
         passes::debugVisibilityBuffer(_renderGraph, {
@@ -493,7 +521,7 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
                     .stage = canta::ShaderStage::COMPUTE
                 })}
             })
-        }).addStorageImageRead(backbufferClear, canta::PipelineStage::COMPUTE_SHADER);
+        }).addStorageImageRead(skyBackbuffer, canta::PipelineStage::COMPUTE_SHADER);
     }
 
 

@@ -37,7 +37,7 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
 }
 
 vec3 evalLight(Material material, InterpolatedValues values, GPULight light, GPUCamera camera) {
-    vec3 lightVec = light.position - values.worldPosition;
+    vec3 lightVec = light.type == 1 ? light.position - values.worldPosition : light.position;
     vec3 L = normalize(lightVec);
     vec3 V = normalize(camera.position - values.worldPosition);
     vec3 H = normalize(L + V);

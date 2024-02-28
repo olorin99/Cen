@@ -73,7 +73,7 @@ void main() {
 
     uint visibility = imageLoad(storageImages[visibilityImageIndex], globCoords).r;
     if (visibility == 0) {
-        imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(0.0, 0.0, 0.0, 1.0));
+//        imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(0.0, 0.0, 0.0, 1.0));
         return;
     }
 
