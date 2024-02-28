@@ -49,7 +49,9 @@ add_library(Cen
         src/ui/RenderGraphWindow.cpp
         include/Cen/ui/RenderGraphWindow.h
         src/passes/BloomPass.cpp
-        src/passes/BloomPass.h)
+        src/passes/BloomPass.h
+        src/ui/ProfileWindow.cpp
+        include/Cen/ui/ProfileWindow.h)
 
 set(CANTA_ENABLE_EXAMPLES OFF)
 set(CANTA_ENABLE_IMGUI ON)
@@ -63,6 +65,6 @@ target_include_directories(Cen
     src
     third_party
 )
-target_link_libraries(Cen Ende Canta fastgltf meshoptimizer stb_image)
+target_link_libraries(Cen Ende Canta fastgltf meshoptimizer stb_image implot)
 
 add_subdirectory(examples)

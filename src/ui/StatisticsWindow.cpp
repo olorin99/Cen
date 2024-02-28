@@ -21,10 +21,6 @@ void cen::ui::StatisticsWindow::render() {
         ImGui::Text("Milliseconds: %f", milliseconds);
         ImGui::Text("Delta Time: %f", dt);
 
-        auto timers = renderer->renderGraph().timers();
-        for (auto& timer : timers) {
-            ImGui::Text("%s: %f ms", timer.first.c_str(), timer.second.result().value() / 1000000.f);
-        }
         auto pipelineStatistics = renderer->renderGraph().pipelineStatistics();
         for (auto& pipelineStats : pipelineStatistics) {
             if (ImGui::TreeNode(pipelineStats.first.c_str())) {

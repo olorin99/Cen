@@ -12,6 +12,7 @@
 #include <Cen/ui/SceneWindow.h>
 #include <Cen/ui/ViewportWindow.h>
 #include <Cen/ui/RenderGraphWindow.h>
+#include <Cen/ui/ProfileWindow.h>
 
 #include <Ende/thread/ThreadPool.h>
 
@@ -68,11 +69,15 @@ int main(int argc, char* argv[]) {
     renderGraphWindow.engine = engine.get();
     renderGraphWindow.renderGraph = &renderer.renderGraph();
 
+    cen::ui::ProfileWindow profileWindow = {};
+    profileWindow.renderer = &renderer;
+
     guiWorkspace.addWindow(&settingsWindow);
     guiWorkspace.addWindow(&statisticsWindow);
     guiWorkspace.addWindow(&sceneWindow);
     guiWorkspace.addWindow(&renderGraphWindow);
     guiWorkspace.addWindow(&viewportWindow);
+    guiWorkspace.addWindow(&profileWindow);
 
     auto camera = cen::Camera::create({
         .position = { 0, 0, 2 },
@@ -224,6 +229,7 @@ int main(int argc, char* argv[]) {
 
         statisticsWindow.dt = dt;
         statisticsWindow.milliseconds = milliseconds;
+        profileWindow.milliseconds = milliseconds;
         viewportWindow.setBackbuffer(backbufferImage);
 
         settingsWindow.cameraCount = scene._cameras.size();

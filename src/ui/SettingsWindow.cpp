@@ -13,24 +13,6 @@ void cen::ui::SettingsWindow::render() {
         if (ImGui::Checkbox("Mesh Shading", &meshShadingEnabled))
             engine->setMeshShadingEnabled(meshShadingEnabled);
 
-        auto timingEnabled = renderer->renderGraph().timingEnabled();
-        if (ImGui::Checkbox("RenderGraph Timing", &timingEnabled))
-            renderer->renderGraph().setTimingEnabled(timingEnabled);
-        const char* timingModes[] = { "PER_PASS", "PER_GROUP", "SINGLE" };
-        i32 timingModeIndex = static_cast<i32>(renderer->renderGraph().timingMode());
-        if (ImGui::Combo("TimingMode", &timingModeIndex, timingModes, 3)) {
-            switch (timingModeIndex) {
-                case 0:
-                    renderer->renderGraph().setTimingMode(canta::RenderGraph::TimingMode::PER_PASS);
-                    break;
-                case 1:
-                    renderer->renderGraph().setTimingMode(canta::RenderGraph::TimingMode::PER_GROUP);
-                    break;
-                case 2:
-                    renderer->renderGraph().setTimingMode(canta::RenderGraph::TimingMode::SINGLE);
-                    break;
-            }
-        }
         auto pipelineStatsEnabled = renderer->renderGraph().pipelineStatisticsEnabled();
         if (ImGui::Checkbox("RenderGraph PiplelineStats", &pipelineStatsEnabled))
             renderer->renderGraph().setPipelineStatisticsEnabled(pipelineStatsEnabled);
