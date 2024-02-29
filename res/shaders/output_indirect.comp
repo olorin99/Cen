@@ -1,11 +1,5 @@
 #version 460
 
-#extension GL_EXT_nonuniform_qualifier : enable
-#extension GL_GOOGLE_include_directive : enable
-#extension GL_EXT_buffer_reference2 : enable
-#extension GL_EXT_scalar_block_layout : enable
-#extension GL_EXT_shader_explicit_arithmetic_types : enable
-
 #include "cen.glsl"
 #include "visibility_buffer/visibility.glsl"
 
@@ -22,10 +16,10 @@ struct DrawIndirectCommand {
     uint firstVertex;
     uint firstInstance;
 };
-layout (scalar, buffer_reference, buffer_reference_align = 4) writeonly buffer DrawCommandBuffer {
+declareBufferReference(DrawCommandBuffer,
     uint drawCount;
     DrawIndirectCommand commands[];
-};
+);
 
 layout (push_constant) uniform Push {
     GlobalDataRef globalDataRef;

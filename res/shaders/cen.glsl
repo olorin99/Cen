@@ -1,6 +1,8 @@
 #ifndef CEN_INCLUDE_GLSL
 #define CEN_INCLUDE_GLSL
 
+#include <Canta/canta.glsl>
+
 #ifdef __cplusplus
 #include <Ende/platform.h>
 #include <Ende/math/Vec.h>
@@ -29,11 +31,9 @@ struct DispatchIndirectCommand {
     uint y;
     uint z;
 };
-#ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer DispatchIndirectCommandBuffer {
+declareBufferReference(DispatchIndirectCommandBuffer,
     DispatchIndirectCommand command;
-};
-#endif
+);
 
 struct GPUMesh {
     uint meshletOffset;
@@ -44,13 +44,9 @@ struct GPUMesh {
     uint materialOffset;
     int alphaMapIndex;
 };
-#ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer MeshBuffer {
+declareBufferReference(MeshBuffer,
     GPUMesh meshes[];
-};
-#else
-#define MeshBuffer u64
-#endif
+);
 
 struct Meshlet {
     uint vertexOffset;
@@ -61,62 +57,41 @@ struct Meshlet {
     vec3 center;
     float radius;
 };
-#ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer MeshletBuffer {
+declareBufferReference(MeshletBuffer,
     Meshlet meshlets[];
-};
-#else
-#define MeshletBuffer u64
-#endif
+);
 
 struct MeshletInstance {
     uint meshletId;
     uint meshId;
 };
-#ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 4) buffer MeshletInstanceBuffer {
+declareBufferReference(MeshletInstanceBuffer,
     uint opaqueCount;
     uint alphaCount;
     MeshletInstance instances[];
-};
-#else
-#define MeshletInstanceBuffer u64
-#endif
+);
 
 struct Vertex {
     vec3 position;
     vec3 normal;
     vec2 uv;
 };
-
-#ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer VertexBuffer {
+declareBufferReference(VertexBuffer,
     Vertex vertices[];
-};
-
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer IndexBuffer {
+);
+declareBufferReference(IndexBuffer,
     uint indices[];
-};
-
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer PrimitiveBuffer {
+);
+declareBufferReference(PrimitiveBuffer,
     uint8_t primitives[];
-};
-
-layout (scalar, buffer_reference, buffer_reference_align = 4) buffer MeshletIndexBuffer {
+);
+declareBufferReference(MeshletIndexBuffer,
     uint indexCount;
     uint indices[];
-};
-
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer TransformsBuffer {
+);
+declareBufferReference(TransformsBuffer,
     mat4 transforms[];
-};
-#else
-#define VertexBuffer u64
-#define IndexBuffer u64
-#define PrimitiveBuffer u64
-#define MeshletIndexBuffer u64
-#define TransformsBuffer u64
-#endif
+);
 
 struct Frustum {
     vec4 planes[6];
@@ -130,13 +105,9 @@ struct GPUCamera {
     float far;
     Frustum frustum;
 };
-#ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer CameraBuffer {
+declareBufferReference(CameraBuffer,
     GPUCamera camera;
-};
-#else
-#define CameraBuffer u64
-#endif
+);
 
 struct GPULight {
     vec3 position;
@@ -146,13 +117,9 @@ struct GPULight {
     float radius;
     int cameraIndex;
 };
-#ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer LightBuffer {
+declareBufferReference(LightBuffer,
     GPULight light;
-};
-#else
-#define LightBuffer u64
-#endif
+);
 
 struct FeedbackInfo {
     uint meshesDrawn;
@@ -164,13 +131,9 @@ struct FeedbackInfo {
     uint meshletId;
     uint primitiveId;
 };
-#ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 4) buffer FeedbackInfoRef {
+declareBufferReference(FeedbackInfoRef,
     FeedbackInfo info;
-};
-#else
-#define FeedbackInfoRef u64
-#endif
+);
 
 struct GlobalData {
     uint maxMeshCount;
@@ -194,11 +157,9 @@ struct GlobalData {
     LightBuffer lightBufferRef;
     FeedbackInfoRef feedbackInfoRef;
 };
-#ifndef __cplusplus
-layout (scalar, buffer_reference, buffer_reference_align = 4) readonly buffer GlobalDataRef {
+declareBufferReference(GlobalDataRef,
     GlobalData globalData;
-};
-#endif
+);
 
 #define MAX_MESHLET_INSTANCE 10000000
 #define MESHLET_CLEAR_ID MAX_MESHLET_INSTANCE + 1

@@ -5,12 +5,12 @@ Material loadMaterial(MaterialParams params, InterpolatedValues values, GlobalDa
     if (params.albedoIndex < 0) {
         material.albedo = vec4(1.0);
     } else {
-        material.albedo = textureGrad(sampler2D(sampledImages[nonuniformEXT(params.albedoIndex)], samplers[globalData.textureSampler]), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy);
+        material.albedo = textureGrad(sampled2D(sampledImages, nonuniformEXT(params.albedoIndex), globalData.textureSampler), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy);
     }
     if (params.normalIndex < 0)
         material.normal = vec3(0.52, 0.52, 1);
     else
-        material.normal = textureGrad(sampler2D(sampledImages[nonuniformEXT(params.normalIndex)], samplers[globalData.textureSampler]), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy).xyz;
+        material.normal = textureGrad(sampled2D(sampledImages, nonuniformEXT(params.normalIndex), globalData.textureSampler), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy).xyz;
     material.normal = material.normal * 2.0 - 1.0;
     material.normal = normalize(values.TBN * material.normal);
 
@@ -18,14 +18,14 @@ Material loadMaterial(MaterialParams params, InterpolatedValues values, GlobalDa
         material.roughness = 1.0;
         material.metallic = 0.0;
     } else {
-        material.metallic = textureGrad(sampler2D(sampledImages[nonuniformEXT(params.metallicRoughnessIndex)], samplers[globalData.textureSampler]), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy).b;
-        material.roughness = textureGrad(sampler2D(sampledImages[nonuniformEXT(params.metallicRoughnessIndex)], samplers[globalData.textureSampler]), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy).g;
+        material.metallic = textureGrad(sampled2D(sampledImages, nonuniformEXT(params.metallicRoughnessIndex), globalData.textureSampler), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy).b;
+        material.roughness = textureGrad(sampled2D(sampledImages, nonuniformEXT(params.metallicRoughnessIndex), globalData.textureSampler), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy).g;
     }
 
     if (params.emissiveIndex < 0) {
         material.emissive = vec3(0);
     } else {
-        material.emissive = textureGrad(sampler2D(sampledImages[nonuniformEXT(params.emissiveIndex)], samplers[globalData.textureSampler]), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy).rgb;
+        material.emissive = textureGrad(sampled2D(sampledImages, nonuniformEXT(params.emissiveIndex), globalData.textureSampler), values.uvGrad.uv, values.uvGrad.ddx, values.uvGrad.ddy).rgb;
     }
 
     material.emissiveStrength = params.emissiveStrength;

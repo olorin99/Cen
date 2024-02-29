@@ -49,7 +49,7 @@ void cen::ui::AssetManagerWindow::render() {
         if (ImGui::BeginTabBar("Assets")) {
             if (ImGui::BeginTabItem("Pipelines")) {
                 if (ImGui::BeginTable("Pipelines", columnCount)) {
-                    for (auto& [key, value] : pipelineManager->pipeline()) {
+                    for (auto& [key, value] : pipelineManager->pipelines()) {
                         renderAssetPipeline(*pipelineManager, key, value);
                         ImGui::TableNextColumn();
                     }

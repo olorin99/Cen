@@ -1,19 +1,11 @@
 #version 460
 
-#extension GL_EXT_mesh_shader : enable
-#extension GL_EXT_nonuniform_qualifier : enable
-#extension GL_GOOGLE_include_directive : enable
-#extension GL_EXT_buffer_reference2 : enable
-#extension GL_EXT_scalar_block_layout : enable
-#extension GL_EXT_shader_explicit_arithmetic_types : enable
-
 #include "canta.glsl"
 #include "cen.glsl"
 #include "visibility_buffer/visibility.glsl"
 
 #ifdef ALPHA_TEST
-layout (set = 0, binding = CANTA_BINDLESS_SAMPLERS) uniform sampler samplers[];
-layout (set = 0, binding = CANTA_BINDLESS_SAMPLED_IMAGES) uniform texture2D sampledImages[];
+declareSampledImages(sampledImages, texture2D);
 #endif
 
 layout (location = 0) in VsOut {
@@ -36,7 +28,7 @@ void main() {
 
     const GPUMesh mesh = globalDataRef.globalData.meshBufferRef.meshes[fsIn.drawId];
     if (mesh.alphaMapIndex >= 0) {
-        float alpha = texture(sampler2D(sampledImages[mesh.alphaMapIndex], samplers[globalDataRef.globalData.textureSampler]), fsIn.uv).a;
+        float alpha = texture(sampled2D(sampledImages, mesh.alphaMapIndex, globalDataRef.globalData.textureSampler), fsIn.uv).a;
 
 //        int x = int(gl_FragCoord.x) % 4;
 //        int y = int(gl_FragCoord.y) % 4;

@@ -1,17 +1,10 @@
 #version 460
 
-#extension GL_EXT_nonuniform_qualifier : enable
-#extension GL_GOOGLE_include_directive : enable
-#extension GL_EXT_buffer_reference2 : enable
-#extension GL_EXT_scalar_block_layout : enable
-#extension GL_EXT_shader_explicit_arithmetic_types : enable
-
 #include "canta.glsl"
 #include "cen.glsl"
 #include "visibility_buffer/visibility.glsl"
 
-layout (rg32ui, set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform readonly uimage2D storageImages[];
-layout (set = 0, binding = CANTA_BINDLESS_STORAGE_IMAGES) uniform writeonly image2D storageImagesOutput[];
+declareStorageImages(storageImagesOutput, image2D, writeonly);
 
 layout (push_constant) uniform PushData {
     GlobalDataRef globalDataRef;
