@@ -67,6 +67,6 @@ target_include_directories(Cen
     src
     third_party
 )
-target_link_libraries(Cen Ende Canta fastgltf meshoptimizer stb_image implot)
+target_link_libraries(Cen Ende Canta fastgltf meshoptimizer ktx stb_image implot)
 
 add_subdirectory(examples)

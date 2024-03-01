@@ -25,7 +25,20 @@ FetchContent_Declare(
         GIT_TAG         e47e1be6d3d9513153188216455bdbed40a206ef
 )
 
-FetchContent_MakeAvailable(Ende Canta fastgltf meshopt)
+option(KTX_FEATURE_TESTS "" OFF)
+option(KTX_FEATURE_VULKAN "" OFF)
+option(KTX_FEATURE_GL_UPLOAD "" OFF)
+option(KTX_FEATURE_VK_UPLOAD "" OFF)
+option(KTX_FEATURE_WRITE "" OFF)
+option(KTX_FEATURE_TOOLS "" OFF)
+option(KTX_FEATURE_STATIC_LIBRARY "" ON)
+FetchContent_Declare(
+        ktx
+        GIT_REPOSITORY https://github.com/KhronosGroup/KTX-Software.git
+        GIT_TAG        v4.3.1
+)
+
+FetchContent_MakeAvailable(Ende Canta fastgltf meshopt ktx)
 
 add_library(stb_image STATIC stb_image.h stb_image_write.h stb_image.cpp)
 add_library(implot STATIC implot.h implot.cpp implot_internal.h implot_items.cpp)

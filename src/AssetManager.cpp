@@ -8,6 +8,7 @@
 #include <fastgltf/tools.hpp>
 #include <meshoptimizer.h>
 #include <stb_image.h>
+#include <ktx.h>
 #include <rapidjson/document.h>
 #include <stack>
 #include <span>
@@ -116,16 +117,38 @@ auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Form
         return _images[_metadata[index].index];
     }
 
+    bool isKtx = path.extension() == ".ktx2";
+
     i32 width, height, channels;
     u8* data = nullptr;
     u32 length = 0;
+    u32 mips = 1;
+    void* texture = nullptr;
     if (canta::formatSize(format) > 4) {
         f32* hdrData = stbi_loadf(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
         data = reinterpret_cast<u8*>(hdrData);
     } else {
-        data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+        if (isKtx) {
+            texture = nullptr;
+            auto result = ktxTexture2_CreateFromNamedFile(path.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, reinterpret_cast<ktxTexture2**>(&texture));
+
+            ktxTexture2_TranscodeBasis(reinterpret_cast<ktxTexture2*>(texture), KTX_TTF_BC7_RGBA, KTX_TF_HIGH_QUALITY);
+
+            width = reinterpret_cast<ktxTexture2*>(texture)->baseWidth;
+            height = reinterpret_cast<ktxTexture2*>(texture)->baseHeight;
+            mips = reinterpret_cast<ktxTexture2*>(texture)->numLevels;
+//            mips = reinterpret_cast<ktxTexture2*>(texture);
+
+            size_t offset = 0;
+            ktxTexture_GetImageOffset(reinterpret_cast<ktxTexture*>(texture), 0, 0, 0, &offset);
+            data = ktxTexture_GetData(reinterpret_cast<ktxTexture*>(texture)) + offset;
+            length = ktxTexture_GetImageSize(reinterpret_cast<ktxTexture*>(texture), 0);
+            format = static_cast<canta::Format>(reinterpret_cast<ktxTexture2*>(texture)->vkFormat);
+        } else {
+            data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+            length = width * height * canta::formatSize(format);
+        }
     }
-    length = width * height * canta::formatSize(format);
     assert(length != 0);
     //TODO: mips
 
@@ -144,7 +167,10 @@ auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Form
         .height = static_cast<u32>(height),
         .format = format,
     });
-    stbi_image_free(data);
+    if (isKtx)
+        ktxTexture_Destroy(reinterpret_cast<ktxTexture*>(texture));
+    else
+        stbi_image_free(data);
 
     _images[_metadata[index].index] = handle;
     _metadata[index].loaded = true;
@@ -164,7 +190,9 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
         return { this, index };
     }
 
-    fastgltf::Parser parser;
+    constexpr auto gltfExtensions = fastgltf::Extensions::KHR_texture_basisu | fastgltf::Extensions::KHR_mesh_quantization | fastgltf::Extensions::EXT_meshopt_compression |
+                                    fastgltf::Extensions::KHR_materials_emissive_strength;
+    fastgltf::Parser parser(gltfExtensions);
     fastgltf::GltfDataBuffer data;
     data.loadFromFile(path);
     auto type = fastgltf::determineGltfFileType(&data);
@@ -181,57 +209,81 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
     for (auto& assetMaterial : asset->materials) {
         auto materialInstance = material->instance();
 
-        if (assetMaterial.pbrData.baseColorTexture.has_value()) {
+        if (assetMaterial.pbrData.baseColorTexture) {
             i32 textureIndex = assetMaterial.pbrData.baseColorTexture->textureIndex;
-            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
-            auto& image = asset->images[imageIndex];
-            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_SRGB));
-            }
-            if (!materialInstance.setParameter("albedoIndex", images.back()->defaultView().index()))
-                std::printf("tried to load image");
+            i32 imageIndex = -1;
+            if (asset->textures[textureIndex].imageIndex)
+                imageIndex = asset->textures[textureIndex].imageIndex.value();
+            else if (asset->textures[textureIndex].basisuImageIndex)
+                imageIndex = asset->textures[textureIndex].basisuImageIndex.value();
+            if (imageIndex >= 0) {
+                auto& image = asset->images[imageIndex];
+                if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
+                    images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_SRGB));
+                }
+                if (!materialInstance.setParameter("albedoIndex", images.back()->defaultView().index()))
+                    std::printf("tried to load image");
 //                _engine->logger().warn("tried to load \"albedoIndex\" but supplied material does not have appropriate parameter");
+            }
         } else
             materialInstance.setParameter("albedoIndex", -1);
 
 
-        if (assetMaterial.normalTexture.has_value()) {
+        if (assetMaterial.normalTexture) {
             i32 textureIndex = assetMaterial.normalTexture->textureIndex;
-            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
-            auto& image = asset->images[imageIndex];
-            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
-            }
-            if (!materialInstance.setParameter("normalIndex", images.back()->defaultView().index()))
-                std::printf("tried to load image");
+            i32 imageIndex = -1;
+            if (asset->textures[textureIndex].imageIndex)
+                imageIndex = asset->textures[textureIndex].imageIndex.value();
+            else if (asset->textures[textureIndex].basisuImageIndex)
+                imageIndex = asset->textures[textureIndex].basisuImageIndex.value();
+            if (imageIndex >= 0) {
+                auto& image = asset->images[imageIndex];
+                if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
+                    images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
+                }
+                if (!materialInstance.setParameter("normalIndex", images.back()->defaultView().index()))
+                    std::printf("tried to load image");
 //                _engine->logger().warn("tried to load \"normalIndex\" but supplied material does not have appropriate parameter");
+            }
         } else
             materialInstance.setParameter("normalIndex", -1);
 
 
-        if (assetMaterial.pbrData.metallicRoughnessTexture.has_value()) {
+        if (assetMaterial.pbrData.metallicRoughnessTexture) {
             i32 textureIndex = assetMaterial.pbrData.metallicRoughnessTexture->textureIndex;
-            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
-            auto& image = asset->images[imageIndex];
-            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
-            }
-            if (!materialInstance.setParameter("metallicRoughnessIndex", images.back()->defaultView().index()))
-                std::printf("tried to load image");
+            i32 imageIndex = -1;
+            if (asset->textures[textureIndex].imageIndex)
+                imageIndex = asset->textures[textureIndex].imageIndex.value();
+            else if (asset->textures[textureIndex].basisuImageIndex)
+                imageIndex = asset->textures[textureIndex].basisuImageIndex.value();
+            if (imageIndex >= 0) {
+                auto& image = asset->images[imageIndex];
+                if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
+                    images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
+                }
+                if (!materialInstance.setParameter("metallicRoughnessIndex", images.back()->defaultView().index()))
+                    std::printf("tried to load image");
 //                _engine->logger().warn("tried to load \"metallicRoughnessIndex\" but supplied material does not have appropriate parameter");
+            }
         } else
             materialInstance.setParameter("metallicRoughnessIndex", -1);
 
-        if (assetMaterial.emissiveTexture.has_value()) {
+        if (assetMaterial.emissiveTexture) {
             i32 textureIndex = assetMaterial.emissiveTexture->textureIndex;
-            i32 imageIndex = asset->textures[textureIndex].imageIndex.value();
-            auto& image = asset->images[imageIndex];
-            if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-                images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
-            }
-            if (!materialInstance.setParameter("emissiveIndex", images.back()->defaultView().index()))
-                std::printf("tried to load image");
+            i32 imageIndex = -1;
+            if (asset->textures[textureIndex].imageIndex)
+                imageIndex = asset->textures[textureIndex].imageIndex.value();
+            else if (asset->textures[textureIndex].basisuImageIndex)
+                imageIndex = asset->textures[textureIndex].basisuImageIndex.value();
+            if (imageIndex >= 0) {
+                auto& image = asset->images[imageIndex];
+                if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
+                    images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
+                }
+                if (!materialInstance.setParameter("emissiveIndex", images.back()->defaultView().index()))
+                    std::printf("tried to load image");
 //                _engine->logger().warn("tried to load \"emissiveIndex\" but supplied material does not have appropriate parameter");
+            }
         } else
             materialInstance.setParameter("emissiveIndex", -1);
 
