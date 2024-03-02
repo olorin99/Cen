@@ -15,7 +15,7 @@ auto cen::Engine::create(CreateInfo info) -> std::unique_ptr<Engine> {
     });
     engine->_uploadBuffer = canta::UploadBuffer::create({
         .device = engine->device(),
-        .size = 1 << 16
+        .size = 1 << 20
     });
     engine->_assetManager = AssetManager::create({
         .engine = engine.get(),

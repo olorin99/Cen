@@ -104,6 +104,78 @@ auto cen::AssetManager::registerAsset(u32 hash, const std::filesystem::path &pat
     return index;
 }
 
+auto loadKtxImage(cen::Engine* engine, const std::filesystem::path& path, canta::Format format) -> canta::ImageHandle {
+    ktxTexture2* texture = nullptr;
+
+    auto result = ktxTexture2_CreateFromNamedFile(path.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
+    if (result != ktxResult::KTX_SUCCESS)
+        return {};
+    if (ktxTexture2_NeedsTranscoding(texture)) {
+        result = ktxTexture2_TranscodeBasis(texture, KTX_TTF_BC7_RGBA, KTX_TF_HIGH_QUALITY);
+        if (result != ktxResult::KTX_SUCCESS)
+            return {};
+    }
+
+    u32 width = texture->baseWidth;
+    u32 height = texture->baseHeight;
+    u32 mips = texture->numLevels;
+    format = static_cast<canta::Format>(texture->vkFormat);
+
+    auto handle = engine->device()->createImage({
+        .width = static_cast<u32>(width),
+        .height = static_cast<u32>(height),
+        .format = format,
+        .mipLevels = mips,
+        .usage = canta::ImageUsage::SAMPLED | canta::ImageUsage::TRANSFER_DST | canta::ImageUsage::TRANSFER_SRC,
+        .name = path.string()
+    });
+
+    for (u32 mip = 0; mip < mips; mip++) {
+        size_t offset = 0;
+        ktxTexture_GetImageOffset(reinterpret_cast<ktxTexture*>(texture), mip, 0, 0, &offset);
+        u32 length = ktxTexture_GetImageSize(reinterpret_cast<ktxTexture*>(texture), mip);
+        u8* data = ktxTexture_GetData(reinterpret_cast<ktxTexture*>(texture)) + offset;
+
+        u32 mipWidth = width >> mip;
+        u32 mipHeight = height >> mip;
+
+        engine->uploadBuffer().upload(handle, std::span<u8>(data, length), {
+            .width = mipWidth,
+            .height = mipHeight,
+            .format = format,
+            .mipLevel = mip,
+            .final = mip == (mips - 1)
+        });
+    }
+    ktxTexture_Destroy(reinterpret_cast<ktxTexture*>(texture));
+    return handle;
+}
+
+auto loadStbImage(cen::Engine* engine, const std::filesystem::path& path, canta::Format format) -> canta::ImageHandle {
+    i32 width = 0;
+    i32 height = 0;
+    i32 channels = 0;
+    u8* data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    u32 length = width * height * canta::formatSize(format);
+    assert(length != 0);
+
+    auto handle = engine->device()->createImage({
+        .width = static_cast<u32>(width),
+        .height = static_cast<u32>(height),
+        .format = format,
+        .usage = canta::ImageUsage::SAMPLED | canta::ImageUsage::TRANSFER_DST | canta::ImageUsage::TRANSFER_SRC,
+        .name = path.string()
+    });
+    engine->uploadBuffer().upload(handle, std::span<u8>(data, length), {
+        .width = static_cast<u32>(width),
+        .height = static_cast<u32>(height),
+        .format = format,
+    });
+
+    stbi_image_free(data);
+    return handle;
+}
+
 auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Format format) -> canta::ImageHandle {
     auto hash = std::hash<std::filesystem::path>()(absolute(path));
     auto index = getAssetIndex(hash);
@@ -119,58 +191,12 @@ auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Form
 
     bool isKtx = path.extension() == ".ktx2";
 
-    i32 width, height, channels;
-    u8* data = nullptr;
-    u32 length = 0;
-    u32 mips = 1;
-    void* texture = nullptr;
-    if (canta::formatSize(format) > 4) {
-        f32* hdrData = stbi_loadf(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-        data = reinterpret_cast<u8*>(hdrData);
+    canta::ImageHandle handle = {};
+    if (isKtx) {
+        handle = loadKtxImage(_engine, path, format);
     } else {
-        if (isKtx) {
-            texture = nullptr;
-            auto result = ktxTexture2_CreateFromNamedFile(path.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, reinterpret_cast<ktxTexture2**>(&texture));
-
-            ktxTexture2_TranscodeBasis(reinterpret_cast<ktxTexture2*>(texture), KTX_TTF_BC7_RGBA, KTX_TF_HIGH_QUALITY);
-
-            width = reinterpret_cast<ktxTexture2*>(texture)->baseWidth;
-            height = reinterpret_cast<ktxTexture2*>(texture)->baseHeight;
-            mips = reinterpret_cast<ktxTexture2*>(texture)->numLevels;
-//            mips = reinterpret_cast<ktxTexture2*>(texture);
-
-            size_t offset = 0;
-            ktxTexture_GetImageOffset(reinterpret_cast<ktxTexture*>(texture), 0, 0, 0, &offset);
-            data = ktxTexture_GetData(reinterpret_cast<ktxTexture*>(texture)) + offset;
-            length = ktxTexture_GetImageSize(reinterpret_cast<ktxTexture*>(texture), 0);
-            format = static_cast<canta::Format>(reinterpret_cast<ktxTexture2*>(texture)->vkFormat);
-        } else {
-            data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-            length = width * height * canta::formatSize(format);
-        }
+        handle = loadStbImage(_engine, path, format);
     }
-    assert(length != 0);
-    //TODO: mips
-
-//    u32 mips = std::floor(std::log2(std::max(width, height))) + 1;
-
-    auto handle = _engine->device()->createImage({
-        .width = static_cast<u32>(width),
-        .height = static_cast<u32>(height),
-        .format = format,
-        .usage = canta::ImageUsage::SAMPLED | canta::ImageUsage::TRANSFER_DST | canta::ImageUsage::TRANSFER_SRC,
-        .name = path.string()
-    });
-
-    _engine->uploadBuffer().upload(handle, std::span<u8>(data, length), {
-        .width = static_cast<u32>(width),
-        .height = static_cast<u32>(height),
-        .format = format,
-    });
-    if (isKtx)
-        ktxTexture_Destroy(reinterpret_cast<ktxTexture*>(texture));
-    else
-        stbi_image_free(data);
 
     _images[_metadata[index].index] = handle;
     _metadata[index].loaded = true;
