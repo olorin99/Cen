@@ -53,6 +53,7 @@ void cen::ui::ProfileWindow::render() {
         auto timingEnabled = renderer->renderGraph().timingEnabled();
         if (ImGui::Checkbox("RenderGraph Timing", &timingEnabled))
             renderer->renderGraph().setTimingEnabled(timingEnabled);
+        ImGui::Checkbox("Show Graphs", &_showGraphs);
         ImGui::Checkbox("Individual Graphs", &_individualGraphs);
         ImGui::Checkbox("Draw Shaded", &_fill);
         ImGui::Checkbox("Show Legend", &_showLegend);
@@ -76,44 +77,50 @@ void cen::ui::ProfileWindow::render() {
 
         ImGui::Text("Milliseconds: %f", milliseconds);
         ImGui::Text("Delta Time: %f", milliseconds / 1000.f);
-        if (_individualGraphs) {
-            simpleGraph("Milliseconds", _frameTime, _frameOffset, 240);
+        if (_showGraphs) {
+            if (_individualGraphs) {
+                simpleGraph("Milliseconds", _frameTime, _frameOffset, 240);
 
-            for (auto& timer : timers) {
-                auto it = _times.find(timer.first);
-                if (it == _times.end() || it.value().empty())
-                    continue;
-
-                auto& data = it.value();
-                simpleGraph(std::format("{} - {} ms", timer.first.c_str(), data[_frameOffset]).c_str(), data, _frameOffset, 32.f);
-            }
-        } else {
-            if (ImPlot::BeginPlot("Frame Times", ImVec2{-1, 240}, _showLegend ? ImPlotFlags_None : ImPlotFlags_NoLegend)) {
-                auto [min, max] = std::minmax_element(_frameTime.begin(), _frameTime.end());
-                ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels, _allowZoom ? 0 : ImPlotAxisFlags_AutoFit);
-                if (!_allowZoom)
-                    ImPlot::SetupAxisLimits(ImAxis_Y1, 0, *max, ImPlotCond_Always);
-
-                if (_fill) {
-                    ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
-                    ImPlot::PlotShaded("frame time", _frameTime.data(), _frameTime.size(), 0, 1, 0, 0, _frameOffset);
-                    ImPlot::PopStyleVar();
-                }
-                ImPlot::PlotLine("frame time", _frameTime.data(), _frameTime.size(), 1, 0, 0, _frameOffset);
                 for (auto& timer : timers) {
                     auto it = _times.find(timer.first);
                     if (it == _times.end() || it.value().empty())
                         continue;
 
                     auto& data = it.value();
+                    simpleGraph(std::format("{} - {} ms", timer.first.c_str(), data[_frameOffset]).c_str(), data, _frameOffset, 32.f);
+                }
+            } else {
+                if (ImPlot::BeginPlot("Frame Times", ImVec2{-1, 240}, _showLegend ? ImPlotFlags_None : ImPlotFlags_NoLegend)) {
+                    auto [min, max] = std::minmax_element(_frameTime.begin(), _frameTime.end());
+                    ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels, _allowZoom ? 0 : ImPlotAxisFlags_AutoFit);
+                    if (!_allowZoom)
+                        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, *max, ImPlotCond_Always);
+
                     if (_fill) {
                         ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
-                        ImPlot::PlotShaded(timer.first.c_str(), data.data(), data.size(), 0, 1, 0, 0, _frameOffset);
+                        ImPlot::PlotShaded("frame time", _frameTime.data(), _frameTime.size(), 0, 1, 0, 0, _frameOffset);
                         ImPlot::PopStyleVar();
                     }
-                    ImPlot::PlotLine(timer.first.c_str(), data.data(), data.size(), 1, 0, 0, _frameOffset);
+                    ImPlot::PlotLine("frame time", _frameTime.data(), _frameTime.size(), 1, 0, 0, _frameOffset);
+                    for (auto& timer : timers) {
+                        auto it = _times.find(timer.first);
+                        if (it == _times.end() || it.value().empty())
+                            continue;
+
+                        auto& data = it.value();
+                        if (_fill) {
+                            ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
+                            ImPlot::PlotShaded(timer.first.c_str(), data.data(), data.size(), 0, 1, 0, 0, _frameOffset);
+                            ImPlot::PopStyleVar();
+                        }
+                        ImPlot::PlotLine(timer.first.c_str(), data.data(), data.size(), 1, 0, 0, _frameOffset);
+                    }
+                    ImPlot::EndPlot();
                 }
-                ImPlot::EndPlot();
+            }
+        } else {
+            for (auto& timer : timers) {
+                ImGui::Text("%s: %f ms", timer.first.c_str(), timer.second.result().value() / 1e6);
             }
         }
     }
