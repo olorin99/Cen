@@ -55,6 +55,7 @@ void cen::ui::ProfileWindow::render() {
             renderer->renderGraph().setTimingEnabled(timingEnabled);
         ImGui::Checkbox("Show Graphs", &_showGraphs);
         ImGui::Checkbox("Individual Graphs", &_individualGraphs);
+        ImGui::Checkbox("Draw Stacked", &_drawStacked);
         ImGui::Checkbox("Draw Shaded", &_fill);
         ImGui::Checkbox("Show Legend", &_showLegend);
         ImGui::Checkbox("Allow Zoom", &_allowZoom);
@@ -102,18 +103,35 @@ void cen::ui::ProfileWindow::render() {
                         ImPlot::PopStyleVar();
                     }
                     ImPlot::PlotLine("frame time", _frameTime.data(), _frameTime.size(), 1, 0, 0, _frameOffset);
+                    if (_drawStacked) {
+                        _summedData.clear();
+                        if (_summedData.size() != _windowFrameCount) {
+                            _summedData.resize(_windowFrameCount);
+                        }
+                    }
                     for (auto& timer : timers) {
                         auto it = _times.find(timer.first);
                         if (it == _times.end() || it.value().empty())
                             continue;
 
                         auto& data = it.value();
+                        if (_drawStacked) {
+                            for (u32 i = 0; i < data.size(); i++) {
+                                _summedData[i] += data[i];
+                            }
+                        }
+
                         if (_fill) {
                             ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
-                            ImPlot::PlotShaded(timer.first.c_str(), data.data(), data.size(), 0, 1, 0, 0, _frameOffset);
+                            if (_drawStacked) {
+                                ImPlot::PlotShaded(timer.first.c_str(), _summedData.data(), _summedData.size(), 0, 1, 0, 0, _frameOffset);
+
+                            } else {
+                                ImPlot::PlotShaded(timer.first.c_str(), data.data(), data.size(), 0, 1, 0, 0, _frameOffset);
+                            }
                             ImPlot::PopStyleVar();
                         }
-                        ImPlot::PlotLine(timer.first.c_str(), data.data(), data.size(), 1, 0, 0, _frameOffset);
+                        ImPlot::PlotLine(timer.first.c_str(), _drawStacked ? _summedData.data() : data.data(), _drawStacked ? _summedData.size() : data.size(), 1, 0, 0, _frameOffset);
                     }
                     ImPlot::EndPlot();
                 }

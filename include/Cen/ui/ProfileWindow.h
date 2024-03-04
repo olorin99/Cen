@@ -22,11 +22,14 @@ namespace cen::ui {
         Renderer* renderer = nullptr;
         f32 milliseconds = 0;
 
+        std::vector<f32> _summedData = {};
+
         std::vector<f32> _frameTime = {};
         tsl::robin_map<std::string, std::vector<f32>> _times = {};
 
         bool _showGraphs = true;
         bool _individualGraphs = false;
+        bool _drawStacked = true;
         bool _fill = false;
         bool _showLegend = true;
         bool _allowZoom = false;
