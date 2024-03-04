@@ -20,8 +20,8 @@ auto cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
             .addStorageBufferRead(params.cameraBuffer, canta::PipelineStage::MESH_SHADER)
 
             .addStorageBufferWrite(params.feedbackBuffer, canta::PipelineStage::MESH_SHADER)
-            .addColourWrite(params.backbufferImage)
-            .addDepthWrite(params.depthImage, { 0, 0, 0, 0 })
+            .addColourWrite(params.backbufferImage, std::to_array({ MAX_MESHLET_INSTANCE, 0, 0, 0 }))
+            .addDepthWrite(params.depthImage, canta::DepthClearValue{ 0, 0 })
 
             .setExecuteFunction([params] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
                 auto command = graph.getBuffer(params.command);
@@ -132,8 +132,8 @@ auto cen::passes::drawMeshlets(canta::RenderGraph& graph, cen::passes::DrawMeshl
         geometryPass.addStorageBufferRead(params.transformBuffer, canta::PipelineStage::VERTEX_SHADER);
         geometryPass.addStorageBufferRead(params.cameraBuffer, canta::PipelineStage::VERTEX_SHADER);
 
-        geometryPass.addColourWrite(params.backbufferImage);
-        geometryPass.addDepthWrite(params.depthImage, { 0, 0, 0, 0 });
+        geometryPass.addColourWrite(params.backbufferImage, std::to_array({ MAX_MESHLET_INSTANCE, 0, 0, 0 }));
+        geometryPass.addDepthWrite(params.depthImage, canta::DepthClearValue{ 0, 0 });
 
         geometryPass.setExecuteFunction([params, outputIndicesIndex, drawCommandsIndex] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
             auto globalBuffer = graph.getBuffer(params.globalBuffer);

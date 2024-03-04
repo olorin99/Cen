@@ -52,7 +52,7 @@ void main() {
     ivec2 inputSize = imageSize(storageImages[visibilityImageIndex]);
 
     uint visibility = imageLoad(storageImages[visibilityImageIndex], globCoords).r;
-    if (visibility == 0) {
+    if (visibility == MAX_MESHLET_INSTANCE) {
         imageStore(storageImagesOutput[backbufferIndex], globCoords, vec4(1.0));
         return;
     }

@@ -125,7 +125,7 @@ int main(int argc, char* argv[]) {
 
     cen::Asset<cen::Model> model = {};
     ende::math::Vec3f offset = { 0, -2, 0 };
-    threadPool.addJob([&engine, &scene, &model, gltfPath, &material, offset] (u64 id) {
+    threadPool.addJob([&engine, &scene, &model, gltfPath, &material, offset] () {
         model = engine->assetManager().loadModel(gltfPath, material);
         auto rootNode = scene.addNode("mesh_root");
         f32 scale = 4;
@@ -140,6 +140,7 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
+        return true;
     });
 
 //    auto rootNode = scene.addNode("mesh_root");
@@ -180,11 +181,12 @@ int main(int argc, char* argv[]) {
                 case SDL_DROPFILE: {
                     char* droppedFile = event.drop.file;
                     std::filesystem::path assetPath = droppedFile;
-                    threadPool.addJob([&engine, &scene, assetPath, &material] (u64 id) {
+                    threadPool.addJob([&engine, &scene, assetPath, &material] () -> bool {
                         auto asset = engine->assetManager().loadModel(assetPath, material);
                         engine->uploadBuffer().flushStagedData().wait();
-                        if (!asset) return;
+                        if (!asset) return false;
                         scene.addModel(assetPath.string(), *asset, cen::Transform::create({}));
+                        return true;
                     });
                     SDL_free(droppedFile);
                 }
