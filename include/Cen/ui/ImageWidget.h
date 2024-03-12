@@ -6,6 +6,8 @@
 
 namespace cen::ui {
 
+    void renderImage(canta::ImageHandle image, u32 width, u32 height, u32 mode = 0);
+
     class ImageWidget : public Window {
     public:
 
