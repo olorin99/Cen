@@ -8,6 +8,8 @@
 #include <passes/DebugPasses.h>
 #include <passes/BloomPass.h>
 
+#include <stb_image_write.h>
+
 auto cen::Renderer::create(cen::Renderer::CreateInfo info) -> Renderer {
     Renderer renderer = {};
 
@@ -582,6 +584,33 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
             });
     }
 
+    if (_renderSettings.screenshotImage.id > -1) {
+        _renderGraph.addPass("screenshot", canta::PassType::COMPUTE)
+            .addTransferRead(_renderSettings.screenshotImage)
+            .addTransferWrite(swapchainResource)
+            .setExecuteFunction([&] (canta::CommandBuffer& cmd, canta::RenderGraph& graph) {
+                auto image = graph.getImage(_renderSettings.screenshotImage);
+                auto tmpBuffer = _engine->device()->createBuffer({
+                    .size = image->size(),
+                    .usage = canta::BufferUsage::TRANSFER_DST,
+                    .type = canta::MemoryType::READBACK,
+                    .persistentlyMapped = true
+                });
+                cmd.copyImageToBuffer({
+                    .buffer = tmpBuffer,
+                    .image = image,
+                    .dstLayout = canta::ImageLayout::TRANSFER_SRC,
+                    .srcOffset = 0
+                });
+
+                _engine->threadPool().addJob([] (canta::BufferHandle handle, const std::filesystem::path& path, u32 width, u32 height) {
+                    sleep(1); // wait to ensure frame is finished rendering //TODO: find better method for waiting. probs add check for timeline value
+                    stbi_write_jpg(path.c_str(), width, height, 4, handle->mapped().address(), 100);
+                    return true;
+                }, tmpBuffer, _renderSettings.screenshotPath, image->width(), image->height());
+            });
+    }
+
     if (guiWorkspace) {
         _renderGraph.addPass("ui", canta::PassType::GRAPHICS)
             .addColourRead(backbuffer)
@@ -640,6 +669,9 @@ auto cen::Renderer::render(const cen::SceneInfo &sceneInfo, canta::Swapchain* sw
     _renderGraph.execute(waits, signals, releasedImages);
 
     swapchain->present();
+
+    _renderSettings.screenshotImage = {};
+//    _renderSettings.screenshotPath =
 
     return _renderGraph.getImage(backbuffer);
 }

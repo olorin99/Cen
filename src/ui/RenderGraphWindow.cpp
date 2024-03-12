@@ -1,6 +1,7 @@
 #include <Cen/ui/RenderGraphWindow.h>
 #include <imgui.h>
 #include <Cen/Engine.h>
+#include <Cen/Renderer.h>
 #include <Cen/ui/ImageWidget.h>
 
 auto sizeToBytes(u32 size) -> std::string {
@@ -21,13 +22,14 @@ void cen::ui::RenderGraphWindow::render() {
             ImGui::Text("\tInputs:");
             for (u32 i = 0; auto& input : pass->inputs()) {
                 canta::Resource* resource = renderGraph->resources()[input.index].get();
-                if (ImGui::TreeNode(std::format("{}##input##{}", resource->name.c_str(), i++).c_str())) {
+                if (ImGui::TreeNode(std::format("{}##{}##input##{}", resource->name.c_str(), pass->name(), i++).c_str())) {
                     ImGui::Text("\t\t%s:", resource->name.c_str());
                     if (resource->type == canta::ResourceType::IMAGE) {
                         auto& image = renderGraph->images()[dynamic_cast<canta::ImageResource*>(resource)->imageIndex];
                         if (!image)
                             continue;
-                        ImGui::Text("\t\t\tHandle: %i", image.index());
+                        ImGui::Text("\t\t\tFormat: %s", canta::formatString(image->format()));
+                        ImGui::Text("\t\t\tHandle: %i", image->defaultView().index());
                         ImGui::Text("\t\t\tSize: %s", sizeToBytes(image->size()).c_str());
                         if (ImGui::TreeNode(std::format("Show Image##{}##{}", pass->name(), resource->name).c_str())) {
                             auto availSize = ImGui::GetContentRegionAvail();
@@ -35,7 +37,8 @@ void cen::ui::RenderGraphWindow::render() {
                             ImGui::TreePop();
                         }
                         if (ImGui::Button(std::format("Save##{}", i++).c_str())) {
-                            engine->saveImageToDisk(image, std::format("{}.jpg", resource->name), canta::ImageLayout::COLOUR_ATTACHMENT);
+                            renderer->renderSettings().screenshotImage = { .id = input.id, .index = input.index };
+                            renderer->renderSettings().screenshotPath = std::format("{}.jpg", resource->name);
                         }
                     } else {
                         auto& buffer = renderGraph->buffers()[dynamic_cast<canta::BufferResource*>(resource)->bufferIndex];
@@ -50,13 +53,14 @@ void cen::ui::RenderGraphWindow::render() {
             ImGui::Text("\tOutputs:");
             for (u32 i = 0; auto& output : pass->output()) {
                 canta::Resource* resource = renderGraph->resources()[output.index].get();
-                if (ImGui::TreeNode(std::format("{}##output##{}", resource->name.c_str(), i++).c_str())) {
+                if (ImGui::TreeNode(std::format("{}##{}##output##{}", resource->name.c_str(), pass->name(), i++).c_str())) {
                     ImGui::Text("\t\t%s:", resource->name.c_str());
                     if (resource->type == canta::ResourceType::IMAGE) {
                         auto& image = renderGraph->images()[dynamic_cast<canta::ImageResource*>(resource)->imageIndex];
                         if (!image)
                             continue;
-                        ImGui::Text("\t\t\tHandle: %i", image.index());
+                        ImGui::Text("\t\t\tFormat: %s", canta::formatString(image->format()));
+                        ImGui::Text("\t\t\tHandle: %i", image->defaultView().index());
                         ImGui::Text("\t\t\tSize: %s", sizeToBytes(image->size()).c_str());
                         if (ImGui::TreeNode(std::format("Show Image##{}##{}", pass->name(), resource->name).c_str())) {
                             auto availSize = ImGui::GetContentRegionAvail();
@@ -64,7 +68,8 @@ void cen::ui::RenderGraphWindow::render() {
                             ImGui::TreePop();
                         }
                         if (ImGui::Button(std::format("Save##{}", i++).c_str())) {
-                            engine->saveImageToDisk(image, std::format("{}.jpg", resource->name), canta::ImageLayout::COLOUR_ATTACHMENT);
+                            renderer->renderSettings().screenshotImage = { .id = output.id, .index = output.index };
+                            renderer->renderSettings().screenshotPath = std::format("{}.jpg", resource->name);
                         }
                     } else {
                         auto& buffer = renderGraph->buffers()[dynamic_cast<canta::BufferResource*>(resource)->bufferIndex];

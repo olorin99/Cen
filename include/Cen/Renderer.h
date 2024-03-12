@@ -3,6 +3,7 @@
 
 #include <Canta/Device.h>
 #include <Canta/RenderGraph.h>
+#include <filesystem>
 #include <cen.glsl>
 
 namespace cen {
@@ -60,6 +61,9 @@ namespace cen {
             bool mousePick = false;
             i32 mouseX = 0;
             i32 mouseY = 0;
+
+            canta::ImageIndex screenshotImage = {};
+            std::filesystem::path screenshotPath = {};
         };
         auto renderSettings() -> RenderSettings& { return _renderSettings; }
 

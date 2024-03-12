@@ -9,6 +9,7 @@ auto cen::Engine::create(CreateInfo info) -> std::unique_ptr<Engine> {
         .enableMeshShading = info.meshShadingEnabled,
         .instanceExtensions = info.window->requiredExtensions(),
     }).value();
+    engine->_threadPool = std::make_unique<ende::thread::ThreadPool>(info.threadCount);
     engine->_pipelineManager = canta::PipelineManager::create({
         .device = engine->device(),
         .rootPath = info.assetPath / "shaders"

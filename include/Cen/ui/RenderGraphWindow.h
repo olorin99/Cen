@@ -6,6 +6,7 @@
 
 namespace cen {
     class Engine;
+    class Renderer;
 }
 
 namespace cen::ui {
@@ -16,6 +17,7 @@ namespace cen::ui {
         void render() override;
 
         Engine* engine = nullptr;
+        Renderer* renderer = nullptr;
         canta::RenderGraph* renderGraph = nullptr;
 
     };

@@ -69,6 +69,7 @@ int main(int argc, char* argv[]) {
 
     cen::ui::RenderGraphWindow renderGraphWindow = {};
     renderGraphWindow.engine = engine.get();
+    renderGraphWindow.renderer = &renderer;
     renderGraphWindow.renderGraph = &renderer.renderGraph();
     renderGraphWindow.name = "RenderGraph";
 
@@ -121,11 +122,9 @@ int main(int argc, char* argv[]) {
 //    auto material = engine->assetManager().loadMaterial("materials/blinn_phong/blinn_phong.mat");
     auto material = engine->assetManager().loadMaterial("materials/pbr/pbr.mat");
 
-    ende::thread::ThreadPool threadPool;
-
     cen::Asset<cen::Model> model = {};
     ende::math::Vec3f offset = { 0, -2, 0 };
-    threadPool.addJob([&engine, &scene, &model, gltfPath, &material, offset] () {
+    engine->threadPool().addJob([&engine, &scene, &model, gltfPath, &material, offset] () {
         model = engine->assetManager().loadModel(gltfPath, material);
         auto rootNode = scene.addNode("mesh_root");
         f32 scale = 4;
@@ -181,7 +180,7 @@ int main(int argc, char* argv[]) {
                 case SDL_DROPFILE: {
                     char* droppedFile = event.drop.file;
                     std::filesystem::path assetPath = droppedFile;
-                    threadPool.addJob([&engine, &scene, assetPath, &material] () -> bool {
+                    engine->threadPool().addJob([&engine, &scene, assetPath, &material] () -> bool {
                         auto asset = engine->assetManager().loadModel(assetPath, material);
                         engine->uploadBuffer().flushStagedData().wait();
                         if (!asset) return false;

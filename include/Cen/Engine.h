@@ -5,7 +5,7 @@
 #include <Canta/PipelineManager.h>
 #include <Canta/UploadBuffer.h>
 #include <Cen/AssetManager.h>
-
+#include <Ende/thread/ThreadPool.h>
 #include <cen.glsl>
 
 namespace cen {
@@ -21,6 +21,7 @@ namespace cen {
             canta::Window* window = nullptr;
             std::filesystem::path assetPath = {};
             bool meshShadingEnabled = true;
+            u32 threadCount = 1;
         };
         static auto create(CreateInfo info) -> std::unique_ptr<Engine>;
 
@@ -29,6 +30,8 @@ namespace cen {
         void gc();
 
         auto device() const -> canta::Device* { return _device.get(); }
+
+        auto threadPool() -> ende::thread::ThreadPool& { return *_threadPool; }
 
         auto assetManager() -> AssetManager& { return _assetManager; }
 
@@ -53,6 +56,7 @@ namespace cen {
     private:
 
         std::unique_ptr<canta::Device> _device = {};
+        std::unique_ptr<ende::thread::ThreadPool> _threadPool = {};
         canta::PipelineManager _pipelineManager = {};
         canta::UploadBuffer _uploadBuffer = {};
         AssetManager _assetManager = {};
