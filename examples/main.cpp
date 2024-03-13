@@ -31,7 +31,8 @@ int main(int argc, char* argv[]) {
         .applicationName = "CenMain",
         .window = &window,
         .assetPath = std::filesystem::path(CEN_SRC_DIR) / "res",
-        .meshShadingEnabled = true
+        .meshShadingEnabled = true,
+        .threadCount = 4
     });
     auto swapchain = engine->device()->createSwapchain({
         .window = &window
@@ -122,10 +123,9 @@ int main(int argc, char* argv[]) {
 //    auto material = engine->assetManager().loadMaterial("materials/blinn_phong/blinn_phong.mat");
     auto material = engine->assetManager().loadMaterial("materials/pbr/pbr.mat");
 
-    cen::Asset<cen::Model> model = {};
     ende::math::Vec3f offset = { 0, -2, 0 };
-    engine->threadPool().addJob([&engine, &scene, &model, gltfPath, &material, offset] () {
-        model = engine->assetManager().loadModel(gltfPath, material);
+    engine->threadPool().addJob([&engine, &scene, gltfPath, &material, offset] () {
+        auto model = engine->assetManager().loadModel(gltfPath, material);
         auto rootNode = scene.addNode("mesh_root");
         f32 scale = 4;
         for (u32 i = 0; i < 1; i++) {
@@ -142,22 +142,6 @@ int main(int argc, char* argv[]) {
         return true;
     });
 
-//    auto rootNode = scene.addNode("mesh_root");
-
-//    threadPool.wait();
-//    f32 scale = 4;
-//    for (u32 i = 0; i < 1; i++) {
-//        for (u32 j = 0; j < 1; j++) {
-//            for (u32 k = 0; k < 1; k++) {
-//                for (auto& mesh : model->meshes) {
-//                    scene.addMesh(std::format("Mesh: ({}, {}, {})", i, j, k), mesh, cen::Transform::create({
-//                        .position = { static_cast<f32>(i) * scale, static_cast<f32>(j) * scale, static_cast<f32>(k) * scale }
-//                    }), rootNode);
-//                }
-//            }
-//        }
-//    }
-
     engine->uploadBuffer().flushStagedData();
     engine->uploadBuffer().wait();
     engine->uploadBuffer().clearSubmitted();
@@ -166,6 +150,8 @@ int main(int argc, char* argv[]) {
     canta::ImageHandle backbufferImage = {};
 
     cen::ui::GuiWorkspace* guiPointer = &guiWorkspace;
+
+    std::vector<std::future<cen::Asset<cen::Model>>> futures = {};
 
     f64 milliseconds = 16;
     f64 dt = 1.f / 60;
@@ -180,13 +166,7 @@ int main(int argc, char* argv[]) {
                 case SDL_DROPFILE: {
                     char* droppedFile = event.drop.file;
                     std::filesystem::path assetPath = droppedFile;
-                    engine->threadPool().addJob([&engine, &scene, assetPath, &material] () -> bool {
-                        auto asset = engine->assetManager().loadModel(assetPath, material);
-                        engine->uploadBuffer().flushStagedData().wait();
-                        if (!asset) return false;
-                        scene.addModel(assetPath.string(), *asset, cen::Transform::create({}));
-                        return true;
-                    });
+                    futures.push_back(engine->assetManager().loadModelAsync(assetPath, material));
                     SDL_free(droppedFile);
                 }
                     break;
@@ -197,11 +177,6 @@ int main(int argc, char* argv[]) {
                                 guiPointer = nullptr;
                             else
                                 guiPointer = &guiWorkspace;
-                            break;
-                        case SDL_SCANCODE_P:
-                            if (backbufferImage) {
-                                engine->saveImageToDisk(backbufferImage, "backbuffer_screenshot.jpg", canta::ImageLayout::COLOUR_ATTACHMENT);
-                            }
                             break;
                     }
                     break;
@@ -232,6 +207,14 @@ int main(int argc, char* argv[]) {
                 scene.primaryCamera().setRotation(ende::math::Quaternion(cameraRotation.right(), ende::math::rad(-45) * dt) * cameraRotation);
             if (SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_DOWN])
                 scene.primaryCamera().setRotation(ende::math::Quaternion(cameraRotation.right(), ende::math::rad(45) * dt) * cameraRotation);
+        }
+
+        for (auto it = futures.begin(); it != futures.end(); it++) {
+            if (it->wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                auto model = it->get();
+                scene.addModel(model->name, *model, cen::Transform::create({}));
+                futures.erase(it--);
+            }
         }
 
         engine->device()->beginFrame();

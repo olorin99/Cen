@@ -16,7 +16,7 @@ auto cen::Engine::create(CreateInfo info) -> std::unique_ptr<Engine> {
     });
     engine->_uploadBuffer = canta::UploadBuffer::create({
         .device = engine->device(),
-        .size = 1 << 20
+        .size = 1 << 24
     });
     engine->_assetManager = AssetManager::create({
         .engine = engine.get(),
@@ -51,6 +51,7 @@ auto cen::Engine::create(CreateInfo info) -> std::unique_ptr<Engine> {
 
 void cen::Engine::gc() {
     assetManager().uploadMaterials();
+    uploadBuffer().clearSubmitted();
     uploadBuffer().flushStagedData();
     pipelineManager().reloadAll();
     device()->gc();

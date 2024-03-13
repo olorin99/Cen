@@ -56,6 +56,7 @@ auto cen::AssetManager::create(cen::AssetManager::CreateInfo info) -> AssetManag
     AssetManager manager = {};
 
     manager._engine = info.engine;
+    manager._assetMutex = std::make_unique<std::mutex>();
     manager._rootPath = info.rootPath;
     manager._models.reserve(5);
 
@@ -63,6 +64,7 @@ auto cen::AssetManager::create(cen::AssetManager::CreateInfo info) -> AssetManag
 }
 
 auto cen::AssetManager::getAssetIndex(u32 hash) -> i32 {
+    std::unique_lock lock(*_assetMutex);
     auto it = _assetMap.find(hash);
     if (it == _assetMap.end())
         return -1;
@@ -71,6 +73,7 @@ auto cen::AssetManager::getAssetIndex(u32 hash) -> i32 {
 
 auto cen::AssetManager::registerAsset(u32 hash, const std::filesystem::path &path, const std::string &name, AssetType type) -> i32 {
     auto index = getAssetIndex(hash);
+    std::unique_lock lock(*_assetMutex);
     if (index >= 0)
         return index;
 
@@ -203,6 +206,12 @@ auto cen::AssetManager::loadImage(const std::filesystem::path &path, canta::Form
     return handle;
 }
 
+auto cen::AssetManager::loadImageAsync(const std::filesystem::path &path, canta::Format format) -> std::future<canta::ImageHandle> {
+    return _engine->threadPool().addJob([this] (const std::filesystem::path& path, canta::Format format) {
+        return loadImage(path, format);
+    }, path, format);
+}
+
 auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<Material> material) -> cen::Asset<Model> {
     auto hash = std::hash<std::filesystem::path>()(absolute(path));
     auto index = getAssetIndex(hash);
@@ -230,6 +239,12 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
         return {};
     }
 
+    struct ImageInfo {
+        size_t materialInstanceIndex = -1;
+        std::string_view materialParameter = {};
+        std::future<canta::ImageHandle> image = {};
+    };
+    std::vector<ImageInfo> futures = {};
     std::vector<canta::ImageHandle> images = {};
     std::vector<MaterialInstance> materialInstances = {};
     for (auto& assetMaterial : asset->materials) {
@@ -245,11 +260,12 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             if (imageIndex >= 0) {
                 auto& image = asset->images[imageIndex];
                 if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-                    images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_SRGB));
+                    futures.push_back({
+                        .materialInstanceIndex = materialInstances.size(),
+                        .materialParameter = "albedoIndex",
+                        .image = loadImageAsync(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_SRGB)
+                    });
                 }
-                if (!materialInstance.setParameter("albedoIndex", images.back()->defaultView().index()))
-                    std::printf("tried to load image");
-//                _engine->logger().warn("tried to load \"albedoIndex\" but supplied material does not have appropriate parameter");
             }
         } else
             materialInstance.setParameter("albedoIndex", -1);
@@ -265,11 +281,12 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             if (imageIndex >= 0) {
                 auto& image = asset->images[imageIndex];
                 if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-                    images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
+                    futures.push_back({
+                        .materialInstanceIndex = materialInstances.size(),
+                        .materialParameter = "normalIndex",
+                        .image = loadImageAsync(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM)
+                    });
                 }
-                if (!materialInstance.setParameter("normalIndex", images.back()->defaultView().index()))
-                    std::printf("tried to load image");
-//                _engine->logger().warn("tried to load \"normalIndex\" but supplied material does not have appropriate parameter");
             }
         } else
             materialInstance.setParameter("normalIndex", -1);
@@ -285,11 +302,12 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             if (imageIndex >= 0) {
                 auto& image = asset->images[imageIndex];
                 if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-                    images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
+                    futures.push_back({
+                        .materialInstanceIndex = materialInstances.size(),
+                        .materialParameter = "metallicRoughnessIndex",
+                        .image = loadImageAsync(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM)
+                    });
                 }
-                if (!materialInstance.setParameter("metallicRoughnessIndex", images.back()->defaultView().index()))
-                    std::printf("tried to load image");
-//                _engine->logger().warn("tried to load \"metallicRoughnessIndex\" but supplied material does not have appropriate parameter");
             }
         } else
             materialInstance.setParameter("metallicRoughnessIndex", -1);
@@ -304,11 +322,12 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             if (imageIndex >= 0) {
                 auto& image = asset->images[imageIndex];
                 if (const auto* filePath = std::get_if<fastgltf::sources::URI>(&image.data); filePath) {
-                    images.push_back(loadImage(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM));
+                    futures.push_back({
+                        .materialInstanceIndex = materialInstances.size(),
+                        .materialParameter = "emissiveIndex",
+                        .image = loadImageAsync(path.parent_path() / filePath->uri.path(), canta::Format::RGBA8_UNORM)
+                    });
                 }
-                if (!materialInstance.setParameter("emissiveIndex", images.back()->defaultView().index()))
-                    std::printf("tried to load image");
-//                _engine->logger().warn("tried to load \"emissiveIndex\" but supplied material does not have appropriate parameter");
             }
         } else
             materialInstance.setParameter("emissiveIndex", -1);
@@ -317,7 +336,6 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             f32 emissiveStrength = assetMaterial.emissiveStrength;
             if (!materialInstance.setParameter("emissiveStrength", emissiveStrength))
                 std::printf("tried to load image");
-//                _engine->logger().warn("tried to load \"emissiveStrength\" but supplied material does not have appropriate parameter");
         } else
             materialInstance.setParameter("emissiveStrength", 0);
 
@@ -342,6 +360,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
     struct NodeInfo {
         u32 assetIndex = 0;
         u32 modelIndex = 0;
+        ende::math::Mat4f parentTransform = ende::math::identity<4, f32>();
     };
     std::stack<NodeInfo> nodeInfos = {};
     for (u32 nodeIndex : asset->scenes.front().nodeIndices) {
@@ -353,7 +372,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
     }
 
     while (!nodeInfos.empty()) {
-        auto [ assetIndex, modelIndex ] = nodeInfos.top();
+        auto [ assetIndex, modelIndex, parentTransform ] = nodeInfos.top();
         nodeInfos.pop();
 
         auto& assetNode = asset->nodes[assetIndex];
@@ -369,10 +388,13 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
             transform = ende::math::Mat4f(*mat);
         }
 
+        auto worldTransform = parentTransform * transform;
+
         for (u32 child : assetNode.children) {
             nodeInfos.push({
                 .assetIndex = child,
-                .modelIndex = static_cast<u32>(result.nodes.size())
+                .modelIndex = static_cast<u32>(result.nodes.size()),
+                .parentTransform = worldTransform
             });
             result.nodes.push_back({});
         }
@@ -405,7 +427,7 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
                 auto& positionsAccessor = asset->accessors[positionsIt->second];
                 meshVertices.resize(positionsAccessor.count);
                 fastgltf::iterateAccessorWithIndex<ende::math::Vec3f>(asset.get(), positionsAccessor, [&](ende::math::Vec3f position, u32 idx) {
-                    position = transform.transform(position);
+                    position = worldTransform.transform(position);
                     meshVertices[idx].position = position;
 
                     min = { std::min(min.x(), position.x()), std::min(min.y(), position.y()), std::min(min.z(), position.z()), 1 };
@@ -500,12 +522,39 @@ auto cen::AssetManager::loadModel(const std::filesystem::path &path, cen::Asset<
         mesh.meshletOffset += meshletOffset / sizeof(Meshlet);
     }
 
+    while (!futures.empty()) {
+        for (auto it = futures.begin(); it != futures.end(); it++) {
+            if (it->image.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                it->image.wait();
+                auto image = it->image.get();
+                images.push_back(image);
+                materialInstances[it->materialInstanceIndex].setParameter(it->materialParameter, image->defaultView().index());
+                futures.erase(it--);
+            }
+        }
+    }
+
+    for (auto& mesh : meshes) {
+        if (mesh.materialInstance->isTransparent()) {
+            mesh.alphaMapIndex = mesh.materialInstance->getParameter<i32>("albedoIndex");
+        }
+    }
+
+    _engine->uploadBuffer().flushStagedData().wait();
+
+    result.name = path;
     result.meshes = meshes;
     result.materials = std::move(materialInstances);
     result.images = images;
     _models[_metadata[index].index] = std::move(result);
     _metadata[index].loaded = true;
     return { this, index };
+}
+
+auto cen::AssetManager::loadModelAsync(const std::filesystem::path &path, Asset<cen::Material> material) -> std::future<Asset<Model>> {
+    return _engine->threadPool().addJob([this] (const std::filesystem::path& path, Asset<cen::Material> material) {
+        return loadModel(path, material);
+    }, path, material);
 }
 
 auto cen::AssetManager::loadMaterial(const std::filesystem::path &path) -> cen::Asset<Material> {

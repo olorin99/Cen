@@ -31,6 +31,7 @@ namespace cen {
 
 //    private:
 
+        std::string name = {};
         std::vector<Node> nodes = {};
         std::vector<Mesh> meshes = {};
         //TODO: add material support

@@ -6,6 +6,7 @@
 #include <Cen/Model.h>
 #include <Cen/Material.h>
 #include <Canta/Device.h>
+#include <future>
 
 namespace cen {
 
@@ -53,8 +54,10 @@ namespace cen {
         AssetManager() = default;
 
         auto loadImage(const std::filesystem::path& path, canta::Format format) -> canta::ImageHandle;
+        auto loadImageAsync(const std::filesystem::path& path, canta::Format format) -> std::future<canta::ImageHandle>;
 
         auto loadModel(const std::filesystem::path& path, Asset<Material> material = {}) -> Asset<Model>;
+        auto loadModelAsync(const std::filesystem::path& path, Asset<Material> material = {}) -> std::future<Asset<Model>>;
 
         auto loadMaterial(const std::filesystem::path& path) -> Asset<Material>;
 
@@ -78,6 +81,8 @@ namespace cen {
         auto registerAsset(u32 hash, const std::filesystem::path& path, const std::string& name, AssetType type) -> i32;
 
         Engine* _engine = nullptr;
+
+        std::unique_ptr<std::mutex> _assetMutex = {};
 
         std::filesystem::path _rootPath = {};
         std::vector<std::filesystem::path> _searchPaths = {};
