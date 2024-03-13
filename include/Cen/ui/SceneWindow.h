@@ -2,9 +2,11 @@
 #define CEN_SCENEWINDOW_H
 
 #include <Cen/ui/Window.h>
+#include <Ende/platform.h>
 
 namespace cen {
     class Scene;
+    class Renderer;
 }
 namespace cen::ui {
 
@@ -14,6 +16,8 @@ namespace cen::ui {
         void render() override;
 
         Scene* scene = nullptr;
+        Renderer* renderer = nullptr;
+        i32 selectedMesh = -1;
 
     };
 

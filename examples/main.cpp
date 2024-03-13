@@ -62,6 +62,7 @@ int main(int argc, char* argv[]) {
 
     cen::ui::SceneWindow sceneWindow = {};
     sceneWindow.scene = &scene;
+    sceneWindow.renderer = &renderer;
     sceneWindow.name = "Scene";
 
     cen::ui::ViewportWindow viewportWindow = {};

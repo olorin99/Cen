@@ -90,7 +90,7 @@ void nodeTypeLight(cen::Scene::SceneNode* node, cen::Scene* scene) {
         scene->getLight(node).setRadius(radius);
 }
 
-void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene) {
+void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene, i32 selectedMesh, i32 prevSelected) {
     for (u32 childIndex = 0; childIndex < node->children.size(); childIndex++) {
         auto& child = node->children[childIndex];
         ImGui::PushID(std::hash<const void*>()(child.get()));
@@ -100,17 +100,27 @@ void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene) {
                 if (ImGui::TreeNode(child->name.c_str())) {
                     nodeTypeNone(child.get());
                     renderTransform(child.get());
-                    traverseSceneNode(child.get(), scene);
+                    traverseSceneNode(child.get(), scene, selectedMesh, prevSelected);
                     ImGui::TreePop();
                 }
             }
                 break;
             case cen::Scene::NodeType::MESH:
+                if (child.get()->index == prevSelected && prevSelected != selectedMesh)
+                    ImGui::SetNextItemOpen(false);
+                if (child.get()->index == selectedMesh) {
+                    ImGui::SetNextItemOpen(true);
+                    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(12, 109, 17, 255));
+                }
                 if (ImGui::TreeNode(child->name.c_str())) {
                     nodeTypeMesh(child.get(), scene);
                     renderTransform(child.get());
-                    traverseSceneNode(child.get(), scene);
+                    traverseSceneNode(child.get(), scene, selectedMesh, prevSelected);
                     ImGui::TreePop();
+                }
+                if (child.get()->index == selectedMesh) {
+                    ImGui::SetScrollHereY();
+                    ImGui::PopStyleColor();
                 }
                 break;
             case cen::Scene::NodeType::CAMERA:
@@ -122,7 +132,7 @@ void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene) {
                         scene->getCamera(child.get()).setPosition(child->transform.position());
                         scene->getCamera(child.get()).setRotation(child->transform.rotation());
                     }
-                    traverseSceneNode(child.get(), scene);
+                    traverseSceneNode(child.get(), scene, selectedMesh, prevSelected);
                     ImGui::TreePop();
                 }
                 break;
@@ -135,7 +145,7 @@ void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene) {
                         scene->getLight(child.get()).setPosition(child->transform.position());
                         scene->getLight(child.get()).setRotation(child->transform.rotation());
                     }
-                    traverseSceneNode(child.get(), scene);
+                    traverseSceneNode(child.get(), scene, selectedMesh, prevSelected);
                     ImGui::TreePop();
                 }
                 break;
@@ -145,8 +155,12 @@ void traverseSceneNode(cen::Scene::SceneNode* node, cen::Scene* scene) {
 }
 
 void cen::ui::SceneWindow::render() {
+    i32 prevSelected = selectedMesh;
+    if (renderer->feedbackInfo().meshId != 0)
+        selectedMesh = renderer->feedbackInfo().meshId;
+
     if (ImGui::Begin(name.c_str())) {
-        traverseSceneNode(scene->_rootNode.get(), scene);
+        traverseSceneNode(scene->_rootNode.get(), scene, selectedMesh, prevSelected);
     }
     ImGui::End();
 }
